@@ -166,7 +166,7 @@ services:
       - PYTHONUNBUFFERED=1
     volumes:
       - ./logs:/app/logs
-    command: python queue_monitor.py --continuous
+    command: python monitoring/queue_monitor.py --continuous
     restart: unless-stopped
     depends_on:
       redis:
@@ -182,7 +182,7 @@ services:
       - PYTHONUNBUFFERED=1
     volumes:
       - ./logs:/app/logs
-    command: python infra_health_monitor.py --env dev
+    command: python monitoring/infra_health_monitor.py --env dev
     restart: unless-stopped
     depends_on:
       - agents
