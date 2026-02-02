@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional, Tuple
 import json
 
 
-ALLOWED_EVENT_TYPES = {"deploy", "scale", "restart", "crash", "overload", "false_alarm"}
+ALLOWED_EVENT_TYPES = {"deploy", "scale", "restart", "crash", "overload", "false_alarm", "critical_system_failure"}
 
 # These keys MUST exist. We validate only; we never modify the incoming payload.
 REQUIRED_KEYS = {"event_id", "event_type", "timestamp"}

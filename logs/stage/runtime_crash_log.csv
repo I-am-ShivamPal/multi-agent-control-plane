@@ -19,3 +19,8 @@ timestamp,env,event_type,status,response_time,dataset
 2026-01-24T16:07:56.436041,stage,crash,failure,0,crash_dataset.csv
 2026-01-24T16:12:16.999655,stage,crash,failure,0,crash_dataset.csv
 2026-01-31T10:39:36.790058,stage,crash,failure,0,crash_dataset.csv
+2026-01-31T15:35:38.099357,stage,crash,failure,0,crash_dataset.csv
+2026-01-31T15:36:23.716248,stage,crash,failure,0,crash_dataset.csv
+2026-01-31T16:10:14.794535,stage,crash,failure,0,crash_dataset.csv
+2026-02-01T14:56:31.628542,stage,crash,failure,0,crash_dataset.csv
+2026-02-01T16:34:01.735284,stage,crash,failure,0,crash_dataset.csv

@@ -10,3 +10,8 @@ timestamp,service_name,status,uptime_seconds,downtime_seconds,availability_perce
 2026-01-24T16:07:06.832798,restart_stage,success,45,0,100.0,stage
 2026-01-24T16:07:55.431769,restart_stage,success,45,0,100.0,stage
 2026-01-24T16:12:15.995323,restart_stage,success,45,0,100.0,stage
+2026-01-31T15:35:37.094512,restart_stage,success,45,0,100.0,stage
+2026-01-31T15:36:22.711580,restart_stage,success,45,0,100.0,stage
+2026-01-31T16:10:13.783675,restart_stage,success,45,0,100.0,stage
+2026-02-01T14:56:30.622388,restart_stage,success,45,0,100.0,stage
+2026-02-01T16:34:00.725041,restart_stage,success,45,0,100.0,stage

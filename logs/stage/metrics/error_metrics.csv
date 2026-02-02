@@ -38,3 +38,13 @@ timestamp,service_name,error_type,error_count,error_rate_percent,severity,enviro
 2026-01-24T16:12:18.009809,overload_stage,warning,1,100.0,medium,stage
 2026-01-31T10:39:48.713410,crash_stage,failure,1,100.0,medium,stage
 2026-01-31T10:39:49.729279,overload_stage,warning,1,100.0,medium,stage
+2026-01-31T15:35:38.100305,crash_stage,failure,1,100.0,medium,stage
+2026-01-31T15:35:39.107687,overload_stage,warning,1,100.0,medium,stage
+2026-01-31T15:36:23.717198,crash_stage,failure,1,100.0,medium,stage
+2026-01-31T15:36:24.725246,overload_stage,warning,1,100.0,medium,stage
+2026-01-31T16:10:14.796011,crash_stage,failure,1,100.0,medium,stage
+2026-01-31T16:10:15.808562,overload_stage,warning,1,100.0,medium,stage
+2026-02-01T14:56:31.634041,crash_stage,failure,1,100.0,medium,stage
+2026-02-01T14:56:32.648174,overload_stage,warning,1,100.0,medium,stage
+2026-02-01T16:34:01.745870,crash_stage,failure,1,100.0,medium,stage
+2026-02-01T16:34:02.760532,overload_stage,warning,1,100.0,medium,stage

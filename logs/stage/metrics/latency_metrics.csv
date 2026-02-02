@@ -43,3 +43,16 @@ timestamp,service_name,operation,latency_ms,p50_ms,p95_ms,p99_ms,environment
 2026-01-28T21:20:09.740705,deploy_stage,deploy,120,120,120,120,stage
 2026-01-31T09:45:11.601113,deploy_stage,deploy,120,120,120,120,stage
 2026-01-31T09:58:55.699983,deploy_stage,deploy,120,120,120,120,stage
+2026-01-31T15:27:53.972805,deploy_stage,deploy,120,120,120,120,stage
+2026-01-31T15:28:59.374598,deploy_stage,deploy,120,120,120,120,stage
+2026-01-31T15:31:47.751678,deploy_stage,deploy,120,120,120,120,stage
+2026-01-31T15:35:35.078442,deploy_stage,deploy,120,120,120,120,stage
+2026-01-31T15:35:36.087589,scale_stage,scale_horizontal,0,0,0,0,stage
+2026-01-31T15:36:20.695534,deploy_stage,deploy,120,120,120,120,stage
+2026-01-31T15:36:21.705660,scale_stage,scale_horizontal,0,0,0,0,stage
+2026-01-31T16:10:11.756196,deploy_stage,deploy,120,120,120,120,stage
+2026-01-31T16:10:12.774087,scale_stage,scale_horizontal,0,0,0,0,stage
+2026-02-01T14:56:28.590029,deploy_stage,deploy,120,120,120,120,stage
+2026-02-01T14:56:29.611165,scale_stage,scale_horizontal,0,0,0,0,stage
+2026-02-01T16:33:58.680835,deploy_stage,deploy,120,120,120,120,stage
+2026-02-01T16:33:59.707705,scale_stage,scale_horizontal,0,0,0,0,stage

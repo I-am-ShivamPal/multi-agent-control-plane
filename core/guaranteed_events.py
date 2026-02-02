@@ -156,7 +156,7 @@ class RuntimeEventEmissionLock:
             # Legacy logging
             with open('runtime_rl_proof.log', 'a') as f:
                 f.write(f"RL CONSUMED: event_type={event_type}, rl_action={result['rl_action']}\n")
-                f.write(f"ORCHESTRATOR: {result['execution']['status']} - {result['execution'].get('action', 'none')}\n")
+                f.write(f"ORCHESTRATOR: {result['execution'].get('success', 'unknown')} - {result['execution'].get('action_executed', 'none')}\n")
             
         except Exception as e:
             raise Exception(f"RL pipe failed: {e}")
