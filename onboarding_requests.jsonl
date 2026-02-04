@@ -1,0 +1,2 @@
+{"app_id": "billing-service", "description": "Handles invoice processing and payment workflows", "env": "prod", "repo_url": "https://github.com/company/billing"}
+{"app_id": "search-service", "description": "Full-text search API for product catalog", "env": "stage", "repo_url": "https://github.com/company/search"}

@@ -90,6 +90,138 @@
                             └─────────────┘
 ```
 
+## 🤖 Agent Runtime Architecture
+
+```
+┌────────────────────────────────────────────────────────────────────────────────┐
+│                        AUTONOMOUS AGENT RUNTIME                                │
+├────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                │
+│  ┌──────────────────────────────────────────────────────────────────────┐      │
+│  │                         AGENT LOOP CONTROL                           │      │
+│  │  ┌────────┐  ┌─────────┐  ┌────────┐  ┌────────┐  ┌─────────┐       │      │
+│  │  │  IDLE  │→│OBSERVING│→│VALIDAT │→│DECIDING│→│ENFORCING│       │      │
+│  │  └────────┘  └─────────┘  └────────┘  └────────┘  └─────────┘       │      │
+│  │       ↑                                                    ↓         │      │
+│  │       │      ┌────────┐  ┌─────────┐  ┌────────┐          │         │      │
+│  │       └──────│EXPLAIN │←│ OBSERVE │←│ ACTING │←─────────┘         │      │
+│  │              │        │  │ RESULTS │  │        │                    │      │
+│  │              └────────┘  └─────────┘  └────────┘                    │      │
+│  └──────────────────────────────────────────────────────────────────────┘      │
+│                                      │                                         │
+│  ┌───────────────────────────────────┼──────────────────────────────────┐      │
+│  │                    AGENT IDENTITY & STATE                            │      │
+│  │                                   │                                  │      │
+│  │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐              │      │
+│  │  │  agent_id   │    │agent_state  │    │last_decision│              │      │
+│  │  │  (UUID)     │    │  (tracked)  │    │  (logged)   │              │      │
+│  │  └─────────────┘    └─────────────┘    └─────────────┘              │      │
+│  └──────────────────────────────────────────────────────────────────────┘      │
+│                                      │                                         │
+│  ┌───────────────────────────────────┼──────────────────────────────────┐      │
+│  │                      AGENT LOOP PHASES                               │      │
+│  │                                   │                                  │      │
+│  │  SENSE        VALIDATE      DECIDE       ENFORCE       ACT           │      │
+│  │  ↓             ↓             ↓            ↓             ↓            │      │
+│  │  Monitor      Schema        RL           Safety        Execute      │      │
+│  │  Events       Validation    Decision     Checks        Action       │      │
+│  │                                                                      │      │
+│  │               OBSERVE        EXPLAIN                                 │      │
+│  │               ↓              ↓                                       │      │
+│  │               Monitor        Log Decision                            │      │
+│  │               Results        & Results                               │      │
+│  └──────────────────────────────────────────────────────────────────────┘      │
+│                                      │                                         │
+│  ┌───────────────────────────────────┼──────────────────────────────────┐      │
+│  │                   STRUCTURED LOGGING                                 │      │
+│  │                                   │                                  │      │
+│  │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐              │      │
+│  │  │  Runtime    │    │   Proof     │    │  Decision   │              │      │
+│  │  │    Log      │    │  Log (JSONL)│    │    Log      │              │      │
+│  │  └─────────────┘    └─────────────┘    └─────────────┘              │      │
+│  │       ↓                     ↓                   ↓                    │      │
+│  │  All entries contain: agent_id, agent_state, last_decision          │      │
+│  └──────────────────────────────────────────────────────────────────────┘      │
+│                                      │                                         │
+│  ┌───────────────────────────────────┼──────────────────────────────────┐      │
+│  │                  CONTINUOUS OPERATION                                │      │
+│  │                                   │                                  │      │
+│  │  while not shutdown_requested:                                       │      │
+│  │      execute_agent_loop()  # sense → ... → explain                   │      │
+│  │      log_heartbeat()       # proof of autonomy                       │      │
+│  │      sleep(loop_interval)  # default: 5 seconds                      │      │
+│  │                                   │                                  │      │
+│  │  ✅ No manual triggers required                                      │      │
+│  │  ✅ Autonomous decision making                                       │      │
+│  │  ✅ Complete audit trail                                             │      │
+│  └──────────────────────────────────────────────────────────────────────┘      │
+│                                                                                │
+└────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Agent Loop Flow
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                        SENSE (Observing)                             │
+│  • Monitor Redis event bus for new events                            │
+│  • Check for scheduled tasks                                         │
+│  • Observe environmental changes                                     │
+│  State: IDLE → OBSERVING                                             │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                      VALIDATE (Validating)                           │
+│  • Schema validation                                                 │
+│  • Payload integrity check                                           │
+│  • Source validation                                                 │
+│  State: OBSERVING → VALIDATING                                       │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                       DECIDE (Deciding)                              │
+│  • RL decision layer processes validated data                        │
+│  • Q-learning selects optimal action                                 │
+│  • Decision logged with full context                                 │
+│  State: VALIDATING → DECIDING                                        │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                      ENFORCE (Enforcing)                             │
+│  • Production safety guards                                          │
+│  • Demo mode allowlist check                                         │
+│  • Environment-specific rules                                        │
+│  State: DECIDING → ENFORCING                                         │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                         ACT (Acting)                                 │
+│  • Execute safe validated action                                     │
+│  • Log action with agent_id                                          │
+│  • Emit events to bus                                                │
+│  State: ENFORCING → ACTING                                           │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                   OBSERVE (Observing Results)                        │
+│  • Monitor action outcomes                                           │
+│  • Verify system stability                                           │
+│  • Collect metrics                                                   │
+│  State: ACTING → OBSERVING_RESULTS                                   │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                      EXPLAIN (Explaining)                            │
+│  • Log decision rationale                                            │
+│  • Document action results                                           │
+│  • Generate human-readable conclusion                                │
+│  • Write to proof log                                                │
+│  State: OBSERVING_RESULTS → EXPLAINING → IDLE                        │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                │
+                                └─▶ Return to IDLE, repeat autonomously
+```
+
 ## 🧠 Agent Intelligence Flow
 
 ```

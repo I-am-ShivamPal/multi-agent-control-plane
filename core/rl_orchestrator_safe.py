@@ -212,13 +212,60 @@ class SafeOrchestrator:
                 'safety_override': True
             }
         
+        # GATE 4: Action Governance Check (eligibility, cooldowns, repetition)
+        from core.action_governance import ActionGovernance
+        
+        governance = ActionGovernance(env=self.env)
+        governance_decision = governance.evaluate_action(
+            action=action,
+            context=context,
+            source=source
+        )
+        
+        if governance_decision.should_block:
+            # Log specific governance event based on reason
+            from core.action_governance import GovernanceReason
+            
+            event_map = {
+                GovernanceReason.COOLDOWN_ACTIVE.value: ProofEvents.COOLDOWN_ACTIVE,
+                GovernanceReason.REPETITION_LIMIT_EXCEEDED.value: ProofEvents.REPETITION_SUPPRESSED,
+                GovernanceReason.ACTION_NOT_ELIGIBLE.value: ProofEvents.ACTION_ELIGIBILITY_FAILED,
+                GovernanceReason.PREREQUISITE_NOT_MET.value: ProofEvents.ACTION_ELIGIBILITY_FAILED,
+            }
+            
+            specific_event = event_map.get(
+                governance_decision.reason,
+                ProofEvents.GOVERNANCE_BLOCK
+            )
+            
+            write_proof(specific_event, {
+                'env': self.env,
+                'action': action,
+                'block_reason': governance_decision.reason,
+                'details': governance_decision.details,
+                'self_imposed': True,
+                'source': source
+            })
+            
+            return {
+                'action_requested': action,
+                'action_executed': 'noop',
+                'reason': governance_decision.details.get('message', governance_decision.reason),
+                'success': False,
+                'timestamp': timestamp,
+                'governance_blocked': True,
+                'governance_reason': governance_decision.reason,
+                'details': governance_decision.details,
+                'source': source
+            }
+        
         # All gates passed - log and execute
         write_proof(ProofEvents.EXECUTION_GATE_PASSED, {
             'env': self.env,
             'action': action,
             'source': source or 'legacy',
             'demo_mode': self.demo_mode,
-            'gates_passed': ['rl_intake', 'demo_safety', 'env_safety']
+            'gates_passed': ['rl_intake', 'demo_safety', 'env_safety', 'governance']
         })
         
         # Execute the action

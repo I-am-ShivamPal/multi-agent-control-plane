@@ -12,12 +12,16 @@ CRITICAL SAFETY:
 """
 
 import os
+import sys
 from typing import List, Set
 
 # ========== DEMO MODE FLAGS ==========
 
 # Master demo mode switch - set to True for stage demonstrations
 DEMO_MODE = os.getenv('DEMO_MODE', 'false').lower() == 'true'
+
+# Demo Freeze Mode Configuration
+DEMO_FREEZE_MODE = os.getenv('DEMO_FREEZE_MODE', 'false').lower() == 'true'
 
 # Enforce production-level safety rules even in dev/stage when DEMO_MODE active
 DEMO_ENFORCE_PROD_SAFETY = True
@@ -149,6 +153,49 @@ def get_demo_config_info() -> dict:
         'proof_log': DEMO_PROOF_LOG,
     }
 
+def is_freeze_mode_active() -> bool:
+    """Check if demo freeze mode is active.
+    
+    Freeze mode prevents learning and behavior drift:
+    - RL epsilon locked to 0 (deterministic)
+    - Q-table updates disabled
+    - No model drift
+    
+    Returns:
+        bool: True if freeze mode is enabled via DEMO_FREEZE_MODE
+    """
+    return DEMO_FREEZE_MODE
+
+def get_freeze_epsilon() -> float:
+    """Get epsilon value for freeze mode.
+    
+    Returns:
+        float: 0.0 if freeze mode active (deterministic), 0.1 otherwise
+    """
+    return 0.0 if DEMO_FREEZE_MODE else 0.1
+
+def log_freeze_skip(state: str, action: str, reason: str = "freeze_mode_active"):
+    """Log Q-table update skip due to freeze mode.
+    
+    Args:
+        state: Current state
+        action: Action that was skipped
+        reason: Reason for skipping (default: freeze_mode_active)
+    """
+    try:
+        from core.proof_logger import write_proof, ProofEvents
+        write_proof(ProofEvents.RUNTIME_EMIT, {
+            'event': 'q_table_update_skipped',
+            'state': state,
+            'action': action,
+            'reason': reason,
+            'freeze_mode': True,
+            'message': 'Q-table update blocked by demo freeze mode'
+        })
+    except ImportError:
+        # Proof logger not available, skip logging
+        pass
+
 # ========== ACTIVATION MESSAGE ==========
 
 if DEMO_MODE:
@@ -159,4 +206,6 @@ if DEMO_MODE:
     print("✓ Production safety rules: ENFORCED")
     print(f"✓ Allowed actions: {', '.join(sorted(DEMO_SAFE_ACTIONS))}")
     print(f"✓ Proof logging: {DEMO_PROOF_LOG}")
+    if DEMO_FREEZE_MODE:
+        print("🔒 FREEZE MODE: Learning disabled, deterministic decisions")
     print("=" * 70)

@@ -54,6 +54,82 @@ A production-ready multi-agent system that simulates CI/CD operations with intel
 
 See [SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md) for detailed system diagrams and technical architecture.
 
+---
+
+## 🤖 What Makes This an Agent?
+
+This is **not a script** — it's an **autonomous AI agent** with explicit identity, continuous operation, and self-governing capabilities.
+
+### Autonomous Loop
+
+The agent runs **continuously** without manual triggers:
+
+```
+sense → validate → decide → enforce → act → observe → explain → repeat
+```
+
+- **No cron jobs** - Runs autonomously in infinite loop
+- **No manual intervention** - Decides and acts independently
+- **Self-contained** - Complete decision cycle every iteration
+
+### Agent Identity
+
+Every runtime instance has:
+
+- **Unique Agent ID**: `agent-{uuid}` (e.g., `agent-7f3a9b2c`)
+- **State Machine**: Explicit states (`IDLE`, `OBSERVING`, `DECIDING`, `ENFORCING`, `ACTING`, `BLOCKED`)
+- **Memory**: Bounded short-term memory (50 decisions, 10 states per app)
+- **Self-awareness**: Tracks uptime, loop count, decision history
+
+### Perception Sources
+
+The agent perceives its environment through multiple adapters:
+
+1. **Runtime Events** - Application crashes, deploys, scale operations
+2. **Health Signals** - CPU, memory, uptime metrics
+3. **Onboarding Input** - New application requests
+4. **System Alerts** - Infrastructure warnings
+
+### Memory Influence
+
+Memory **actively shapes decisions**:
+
+- **Override Logic**: Blocks actions if recent failures > 3 or repeated actions > 3
+- **Instability Detection**: Calculates instability score from failure patterns
+- **Historical Context**: Recalls last 10 decisions and per-app history
+- **Cooldown Tracking**: Stores `cooldown_until` timestamps in memory for governance
+
+### Self-Restraint Rules
+
+The agent **knows when NOT to act**:
+
+1. **Uncertainty Check**: Refuses if confidence < 0.4 (NOOP)
+2. **Signal Conflict**: Enters observe-only mode instead of acting
+3. **Governance Blocks**:
+   - Action eligibility (prod vs stage vs dev)
+   - Cooldown enforcement (prevents rapid repeated actions)
+   - Repetition suppression (prevents loops)
+4. **Memory Override**: Blocks based on failure patterns
+
+When the agent blocks itself:
+- Transitions to **BLOCKED** state
+- Logs detailed reason
+- Stores decision in memory
+- Provides explanation
+
+### What the Agent Will NEVER Do
+
+- ❌ **Modify data** - Only infrastructure actions (restart, scale)
+- ❌ **Access credentials** - No database or secret access
+- ❌ **Delete resources** - Only safe operational changes
+- ❌ **Act on low confidence** - Refuses uncertain decisions
+- ❌ **Ignore cooldowns** - Respects timing constraints
+- ❌ **Act on conflicts** - Observes instead when signals disagree
+
+This ensures the agent is **safe, observable, and explainable**.
+
+---
+
 ## 🚀 Quick Start
 
 ```bash
@@ -198,6 +274,206 @@ Duration: 3.6 seconds
 ```
 
 **Proof Log**: All events are logged in `logs/day1_proof.log` with timestamps and metadata for full auditability.
+
+---
+
+## 🤖 What Makes This an AI Agent
+
+This system is a **true autonomous AI agent**, not just a collection of scripts. Here's what differentiates it:
+
+### Agent vs Script Comparison
+
+| Aspect | Traditional Script | This AI Agent |
+|--------|-------------------|---------------|
+| **Execution** | Runs once per invocation | Runs continuously, indefinitely |
+| **Initiative** | Waits for manual triggers | Autonomously monitors and acts |
+| **State** | Stateless between runs | Maintains state across agent loop |
+| **Decision Making** | Pre-programmed rules only | RL-based learning + safety rules |
+| **Identity** | Anonymous execution | Tracked `agent_id` with audit trail |
+| **Observability** | Basic logs | Structured logs with agent_state, last_decision |
+
+### Autonomous Agent Runtime
+
+**Entry Point**: `agent_runtime.py`
+
+```bash
+# Run as autonomous agent (recommended)
+python agent_runtime.py --env dev
+
+# View real-time agent logs
+Get-Content logs\agent\agent_runtime.log -Wait  # Windows
+tail -f logs/agent/agent_runtime.log            # Linux/Mac
+
+# Graceful shutdown
+# Press Ctrl+C or send SIGTERM
+```
+
+### Explicit Agent Loop
+
+The agent follows an explicit **sense → validate → decide → enforce → act → observe → explain** loop:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    AUTONOMOUS AGENT LOOP                        │
+└─────────────────────────────────────────────────────────────────┘
+
+    ┌──────────────────────────────────────────────────────┐
+    │                                                      │
+    ▼                                                      │
+┌────────┐    ┌──────────┐    ┌────────┐    ┌──────────┐ │
+│ SENSE  │───▶│ VALIDATE │───▶│ DECIDE │───▶│ ENFORCE│ │
+│        │    │          │    │        │    │          │ │
+│observe │    │validate  │    │RL      │    │safety    │ │
+│events  │    │schema    │    │decision│    │checks    │ │
+└────────┘    └──────────┘    └────────┘    └──────────┘ │
+                                                         │
+┌────────┐    ┌──────────┐    ┌────────┐                 │
+│EXPLAIN │◀───│ OBSERVE  │◀───│  ACT   │────────────────┘
+│        │    │          │    │        │
+│log +   │    │monitor   │    │execute │
+│explain │    │results   │    │action  │
+└────────┘    └──────────┘    └────────┘
+    │
+    └─▶ Return to IDLE, repeat autonomously
+```
+
+### Agent State Machine
+
+The agent transitions through well-defined states:
+
+```
+idle → observing → validating → deciding → enforcing → acting → observing_results → explaining → idle
+  │                                                                                                │
+  └────────────────────────────── blocked (on error) ─────────────────────────────────────────────┘
+```
+
+**States**:
+- `idle`: Waiting for events or scheduled tasks
+- `observing`: Monitoring environment for changes (SENSE)
+- `validating`: Validating observed data (VALIDATE)
+- `deciding`: Running RL decision layer (DECIDE)
+- `enforcing`: Applying safety checks (ENFORCE)
+- `acting`: Executing validated actions (ACT)
+- `observing_results`: Monitoring outcomes (OBSERVE)
+- `explaining`: Logging decisions and results (EXPLAIN)
+- `blocked`: Error state, requires intervention
+
+### Agent Identity & Tracking
+
+Every agent instance has:
+
+**Agent ID**: Unique identifier (e.g., `agent-a3f9c2b1`)
+```bash
+# Specify agent ID
+python agent_runtime.py --env dev --agent-id my-agent-001
+
+# Auto-generate agent ID
+python agent_runtime.py --env dev
+```
+
+**Tracked Metrics**:
+- `agent_id`: Unique identifier for this agent instance
+- `agent_state`: Current state in the agent loop
+- `last_decision`: Most recent decision with timestamp and data
+- `loop_count`: Number of agent loop iterations
+- `uptime_seconds`: Agent runtime duration
+
+### Continuous Autonomous Operation
+
+**No Manual Triggers Required**:
+```python
+# Agent runs indefinitely until shutdown
+while not shutdown_requested:
+    execute_agent_loop()  # sense → validate → decide → enforce → act → observe → explain
+    heartbeat()           # Log uptime, state, last_decision
+    sleep(loop_interval)  # Default: 5 seconds
+```
+
+**Proof of Autonomy**: Check logs for continuous operation
+```bash
+# View proof logs (JSONL format)
+Get-Content logs\agent\agent_proof.jsonl | Select-Object -Last 20  # Windows
+tail -20 logs/agent/agent_proof.jsonl                               # Linux/Mac
+
+# Expected entries:
+# - heartbeat events (every loop_interval)
+# - state_transition events
+# - autonomous_operation events
+# - All with timestamps proving continuous operation
+```
+
+### Agent Logs
+
+**Structured Logging**: Every log entry includes agent context
+
+```json
+{
+  "timestamp": "2026-02-03T15:10:23.456Z",
+  "agent_id": "agent-a3f9c2b1",
+  "agent_state": "deciding",
+  "last_decision": {
+    "type": "rl_decision",
+    "timestamp": "2026-02-03T15:10:20.123Z",
+    "data": {"rl_action": 3, "confidence": 0.87}
+  },
+  "event": "decision",
+  "decision_type": "rl_decision",
+  "decision_data": {"rl_action": 3, "input": "..."}
+}
+```
+
+**Log Files**:
+- `logs/agent/agent_runtime.log` - Main runtime log
+- `logs/agent/agent_proof.jsonl` - Proof log (JSONL format)
+- `logs/agent/agent_decisions.log` - Decision log
+- `logs/agent/agent_state_<agent_id>.json` - Persisted state
+
+### Graceful Shutdown
+
+```bash
+# Start agent
+python agent_runtime.py --env dev
+
+# Graceful shutdown (Ctrl+C or SIGTERM)
+# Agent will:
+# 1. Complete current loop iteration
+# 2. Transition to SHUTTING_DOWN state
+# 3. Save state to logs/agent/agent_state_<id>.json
+# 4. Log final statistics (uptime, loop_count)
+# 5. Exit cleanly
+```
+
+### Running Multiple Agents
+
+```bash
+# Run multiple agents in different environments
+python agent_runtime.py --env dev --agent-id dev-agent-1 &
+python agent_runtime.py --env stage --agent-id stage-agent-1 &
+
+# Each agent:
+# - Maintains independent state
+# - Logs with unique agent_id
+# - Communicates via Redis event bus
+# - Operates autonomously
+```
+
+### Agent Runtime vs Legacy Main.py
+
+**Legacy Script Mode** (`main.py`):
+- Single execution per invocation
+- Requires manual triggers
+- No persistent state
+- Basic logging
+
+**Autonomous Agent Mode** (`agent_runtime.py`):
+- Continuous operation
+- Self-triggering based on events
+- Persistent state across loops
+- Structured agent logging with full context
+
+**Recommendation**: Use `agent_runtime.py` for production deployments where autonomous operation is required.
+
+---
 
 ## 🎯 What This System Does
 
@@ -522,10 +798,322 @@ python demo_prod_safety_in_stage.py
 
 # Run hardened demo flow
 python demo_hardened_flow.py
-
+```bash
 # Verify all safety guarantees
-python final_verification.py
+python verify_freeze.py
 ```
+
+---
+
+## 🛑 Agent Self-Restraint Guarantees
+
+### Autonomous Action Governance
+
+The agent includes **explicit self-restraint rules** that enable it to refuse actions without requiring orchestrator intervention. This ensures the agent knows when NOT to act.
+
+#### Governance Architecture
+
+```
+Action Request
+    ↓
+[GATE 1: RL Intake]       ← Source validation
+    ↓
+[GATE 2: Demo Safety]     ← Demo mode enforcement
+    ↓
+[GATE 3: Env Safety]      ← Environment rules
+    ↓
+[GATE 4: Governance]      ← Action Governance (NEW - Day 2)
+    ├─ Eligibility Check
+    ├─ Cooldown Enforcement
+    ├─ Repetition Suppression
+    └─ Prerequisite Validation
+    ↓
+[GATE 5: Self-Restraint]  ← Uncertainty & Signal Analysis
+    ├─ Uncertainty Check
+    └─ Signal Conflict Detection
+    ↓
+Execution (if all gates pass)
+```
+
+### Governance Rules
+
+#### 1. Action Eligibility
+
+**Rule**: Actions must be explicitly allowed for the current environment.
+
+**Environment Allowlists**:
+- **Production**: `noop` only
+- **Stage**: `restart`, `noop`, `scale_up`, `scale_down`
+- **Development**: All actions including `rollback`
+
+**Example Block**:
+```json
+{
+  "event": "ACTION_ELIGIBILITY_FAILED",
+  "action": "rollback",
+  "env": "prod",
+  "allowed_actions": ["noop"],
+  "self_imposed": true
+}
+```
+
+#### 2. Cooldown Enforcement
+
+**Rule**: Minimum time must elapse between repeated executions of the same action.
+
+**Default Cooldown Periods**:
+- `restart`: 60 seconds
+- `scale_up`: 120 seconds
+- `scale_down`: 120 seconds
+- `rollback`: 300 seconds
+- `noop`: 0 seconds
+
+**Example Block**:
+```json
+{
+  "event": "COOLDOWN_ACTIVE",
+  "action": "restart",
+  "cooldown_period": "60s",
+  "time_remaining": "45s",
+  "self_imposed": true,
+  "message": "Action restart on cooldown for 45.2s"
+}
+```
+
+#### 3. Repetition Suppression
+
+**Rule**: Prevent action loops by limiting repeated identical actions within a time window.
+
+**Default Settings**:
+- **Repetition Limit**: 3 identical actions
+- **Time Window**: 300 seconds (5 minutes)
+
+**Example Block**:
+```json
+{
+  "event": "REPETITION_SUPPRESSED",
+  "action": "scale_up",
+  "action_history": ["scale_up", "scale_up", "scale_up"],
+  "window": "300s",
+  "limit": 3,
+  "actual": 3,
+  "self_imposed": true
+}
+```
+
+#### 4. Prerequisite Validation
+
+**Rule**: Action-specific prerequisites must be satisfied before execution.
+
+**Prerequisites**:
+- `restart`, `scale_up`, `scale_down`: Requires `app_name` in context
+- `rollback`: Requires `has_previous_version` in context
+
+**Example Block**:
+```json
+{
+  "event": "ACTION_ELIGIBILITY_FAILED",
+  "action": "restart",
+  "missing_prerequisite": "app_name",
+  "message": "Action restart requires app_name in context",
+  "self_imposed": true
+}
+```
+
+#### 5. Uncertainty → NOOP
+
+**Rule**: When decision uncertainty is high, agent chooses NOOP instead of risky action.
+
+**Formula**: `Uncertainty = 1 - Confidence`
+
+**Default Threshold**: `uncertainty > 0.5` (confidence < 0.5)
+
+**Example Block**:
+```json
+{
+  "event": "UNCERTAINTY_NOOP",
+  "confidence": 0.35,
+  "uncertainty": 0.65,
+  "threshold": 0.5,
+  "recommended_action": "noop",
+  "self_imposed": true,
+  "message": "Uncertainty 0.65 exceeds threshold 0.5 → NOOP"
+}
+```
+
+#### 6. Signal Conflict → Observe
+
+**Rule**: When health signals conflict, agent observes instead of acting on unreliable data.
+
+**Conflict Detection**:
+- CPU: `cpu_high=True` AND `cpu_low=True`
+- Memory: `memory_high=True` AND `memory_low=True`
+- Error Rate: `error_rate_high=True` AND `error_rate_zero=True`
+
+**Example Block**:
+```json
+{
+  "event": "SIGNAL_CONFLICT_OBSERVE",
+  "conflicts": ["cpu: both high and low"],
+  "recommended_action": "observe",
+  "self_imposed": true,
+  "message": "Conflicting signals detected → observe instead of act"
+}
+```
+
+### Self-Restraint Behavior
+
+When governance blocks an action:
+
+1. **Action Execution**: Replaced with `noop`
+2. **Agent State**: Transitions appropriately (no BLOCKED state unless error)
+3. **Logging**: Full explanation logged to proof log
+4. **Return Value**: Includes `governance_blocked: true` and detailed reason
+5. **Orchestrator**: Never contacted - self-imposed block
+
+### Verification
+
+**Run Demonstration**:
+```bash
+# Interactive demo of all governance scenarios
+python demo_action_governance.py
+```
+
+**Run Automated Verification**:
+```bash
+# Verify all governance rules are working
+python verify_action_governance.py
+
+# Expected output:
+# Tests Passed: 7/7
+# ✅ ALL TESTS PASSED - Action Governance System Verified!
+```
+
+**Check Proof Logs**:
+```bash
+# View governance events
+Get-Content logs\day1_proof.log | Select-String "GOVERNANCE|COOLDOWN|REPETITION|UNCERTAINTY|SIGNAL_CONFLICT"  # Windows
+grep -E "GOVERNANCE|COOLDOWN|REPETITION|UNCERTAINTY|SIGNAL_CONFLICT" logs/day1_proof.log  # Linux/Mac
+```
+
+### Configuration
+
+**Customize Governance Rules**:
+```python
+from core.action_governance import ActionGovernance
+
+governance = ActionGovernance(
+    env='stage',
+    cooldown_periods={
+        'restart': 30,      # Custom 30s cooldown
+        'scale_up': 60,
+    },
+    repetition_limit=5,     # Allow 5 repetitions
+    repetition_window=600   # Within 10 minutes
+)
+```
+
+**Customize Self-Restraint Thresholds**:
+```python
+from core.self_restraint import SelfRestraint
+
+restraint = SelfRestraint(
+    min_confidence=0.7,           # Higher confidence required
+    max_instability_score=60,     # Lower instability tolerance
+    max_recent_failures=3         # Fewer failures allowed
+)
+```
+
+### Guarantees
+
+**The agent WILL**:
+- ✅ Block itself when cooldown is active
+- ✅ Block itself when repetition limit exceeded
+- ✅ Block itself when action not eligible
+- ✅ Block itself when prerequisites not met
+- ✅ Choose NOOP when uncertainty too high
+- ✅ Observe instead of act when signals conflict
+- ✅ Log all self-blocks with detailed explanations
+- ✅ Refuse actions without orchestrator intervention
+
+### Demo Freeze Mode
+
+**Purpose**: Predictable, reproducible demonstrations without learning drift.
+
+**When Active**:
+- RL epsilon = 0 (fully deterministic)
+- Q-table updates disabled
+- No learning occurs
+- Same scenario → Same decision
+
+**Activation**:
+```bash
+export DEMO_FREEZE_MODE=true
+python agent_runtime.py --env stage
+```
+
+**Verification**:
+- Agent status shows `"freeze_mode": true`
+- Proof logs show Q-table updates skipped
+- Repeated scenarios produce identical decisions
+
+**The agent will NEVER**:
+- ❌ Bypass governance checks
+- ❌ Execute actions on cooldown
+- ❌ Create infinite action loops
+- ❌ Execute ineligible actions
+- ❌ Act on high uncertainty
+- ❌ Act on conflicting signals
+- ❌ Fail to log self-blocks
+
+---
+
+## 🚀 Live Demo
+
+**Dashboard URL**: https://multi-agent-dashboard.onrender.com
+**API URL**: https://multi-agent-api.onrender.com
+
+### Terminal-Free Demonstrations
+
+All demos accessible through web interface or API calls:
+
+**📊 View Agent Status**:
+```bash
+curl https://multi-agent-api.onrender.com/api/agent/status
+```
+
+**📝 Onboard New App** (text-based, no code changes):
+```bash
+curl -X POST https://multi-agent-api.onrender.com/api/agent/onboard \
+  -H "Content-Type: application/json" \
+  -d '{"app_name":"my-api","repo_url":"https://github.com/user/my-api","runtime":"nodejs"}'
+```
+
+**💥 Trigger Crash Recovery**:
+```bash
+curl -X POST https://multi-agent-api.onrender.com/api/demo/crash
+```
+
+**📈 Trigger Overload Handling**:
+```bash
+curl -X POST https://multi-agent-api.onrender.com/api/demo/overload
+```
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/agent/status` | GET | Current agent state + last decision |
+| `/api/agent/onboard` | POST | Onboard app via text input |
+| `/api/demo/crash` | POST | Demo crash recovery |
+| `/api/demo/overload` | POST | Demo overload handling |
+| `/api/demo/scenarios` | GET | List all demo scenarios |
+| `/api/logs/proof` | GET | Recent proof logs |
+| `/api/health` | GET | Health check |
+
+See **[DEMO_WALKTHROUGH.md](DEMO_WALKTHROUGH.md)** for complete step-by-step guide.
+
+---
 
 ## 🔒 Demo Execution Guarantees
 
