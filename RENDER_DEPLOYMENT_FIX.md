@@ -1,114 +1,75 @@
-# Render Deployment Fix
+# Render Python Version Fix (v2)
 
-## Issue Summary
-Render deployment was failing with:
-- **Python version mismatch**: Render used 3.13.4 instead of specified 3.10.13
-- **Missing dependency**: gunicorn not in requirements.txt
-- **Build error**: `BackendUnavailable: Cannot import 'setuptools.build_meta'`
+## Issue
+Render is **still using Python 3.13.4** instead of 3.10, even after fixing `runtime.txt`.
 
-## Root Causes
+## Root Cause
+**Conflicting Configuration**: Having BOTH `runtime.txt` AND `pythonVersion` in `render.yaml` causes conflicts.
 
-### 1. Malformed `runtime.txt`
-**Problem:** Extra line with `.` after python version
-```
-python-3.10.13
-.                 ❌ Extra line caused file to be ignored
-```
+According to Render docs:
+- Use **either** `runtime.txt` OR `pythonVersion` in `render.yaml`, not both
+- When using `pythonVersion` in `render.yaml`, format is `3.10` (not `"3.10.13"`)
 
-**Fixed:** Single line only
-```
-python-3.10.13    ✅ Correct format
-```
+## Solution
 
-### 2. Missing `gunicorn`
-**Problem:** `render.yaml` uses gunicorn but it's not in `requirements.txt`
-```yaml
-startCommand: gunicorn api.agent_api:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT
-```
-
-**Fixed:** Added to `requirements.txt`
-```
-gunicorn==21.2.0
-```
-
-## Changes Made
-
-### 1. Fixed `runtime.txt`
-```diff
-- python-3.10.13
-- .
-+ python-3.10.13
-```
-
-### 2. Updated `requirements.txt`
-```diff
-  PyJWT==2.8.0
-  uvicorn==0.24.0
-  fastapi==0.104.1
-+ gunicorn==21.2.0
-```
-
-## Deployment Steps
-
-### 1. Commit and Push
+### 1. Remove `runtime.txt`
 ```bash
-git add runtime.txt requirements.txt
-git commit -m "Fix Render deployment: runtime.txt format and add gunicorn"
-git push origin main
+Remove-Item runtime.txt
 ```
 
-### 2. Render Auto-Deploy
-Render will automatically detect the push and redeploy.
+### 2. Fix `render.yaml`
+```yaml
+services:
+  - type: web
+    name: multi-intelligent-agent-api
+    env: python
+    runtime: python          # ✅ Added
+    pythonVersion: 3.10      # ✅ Changed from "3.10.13" to 3.10 (no quotes)
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn api.agent_api:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT
+```
 
-### 3. Monitor Build
-Watch the build output for:
-- ✅ `Using Python version 3.10.13` (not 3.13.4)
-- ✅ `Successfully installed gunicorn-21.2.0`
-- ✅ `Build succeeded`
+**Changes:**
+- ✅ Removed quotes from `pythonVersion`
+- ✅ Changed `"3.10.13"` → `3.10` (Render only supports major.minor)
+- ✅ Added `runtime: python` for clarity
+- ✅ Deleted `runtime.txt` file
+
+## Why Render Only Supports 3.10 (not 3.10.13)
+
+Render's `pythonVersion` field accepts:
+- ✅ `3.10` (points to latest 3.10.x)
+- ✅ `3.11`
+- ✅ `3.12`
+- ❌ NOT `3.10.13` (patch versions not supported in render.yaml)
 
 ## Expected Build Output
 
+After pushing changes:
 ```
-==> Using Python version 3.10.13 (from runtime.txt)  ✅
+==> Using Python version 3.10.x  ✅ (not 3.13.4!)
 ==> Running build command 'pip install -r requirements.txt'...
-==> Installing packages...
-    ✅ pandas-2.0.3
-    ✅ numpy-1.24.3
-    ✅ fastapi-0.104.1
-    ✅ uvicorn-0.24.0
+    ✅ pandas-2.0.3 (compatible with 3.10)
+    ✅ numpy-1.24.3 (compatible with 3.10)
     ✅ gunicorn-21.2.0
 ==> Build succeeded ✅
-==> Starting service...
 ```
 
-## Why This Works
-
-1. **Correct Python Version**: runtime.txt now properly specifies Python 3.10.13
-2. **All Dependencies**: gunicorn is now included for production server
-3. **Package Compatibility**: numpy 1.24.3 and pandas 2.0.3 work with Python 3.10
-
-## Verification
-
-After deployment succeeds:
+## Deploy Steps
 
 ```bash
-# Test health endpoint
-curl https://your-app.onrender.com/api/agent/status
-
-# Expected response:
-{
-  "agent_id": "agent-...",
-  "state": "idle",
-  "uptime_seconds": ...
-}
+git add render.yaml
+git rm runtime.txt  # Remove from git
+git commit -m "Fix Python version: use pythonVersion 3.10 in render.yaml"
+git push origin main
 ```
 
 ## Files Changed
 
-| File | Change | Purpose |
+| File | Action | Purpose |
 |------|--------|---------|
-| `runtime.txt` | Removed extra line | Fix Python version detection |
-| `requirements.txt` | Added gunicorn==21.2.0 | Add production server |
+| `runtime.txt` | ❌ Deleted | Conflicts with render.yaml pythonVersion |
+| `render.yaml` | ✏️ Modified | Fixed pythonVersion format to 3.10 |
 
 ## Status
-✅ **Ready to deploy** - Push changes and Render will auto-deploy
+🔄 Ready to push - this should finally work!
