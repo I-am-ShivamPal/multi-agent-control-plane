@@ -7,6 +7,180 @@
 
 A production-ready multi-agent system that simulates CI/CD operations with intelligent self-healing capabilities, reinforcement learning optimization, and real-time monitoring.
 
+---
+
+## 🌐 Live Demo URL
+
+**Try it now**: [https://multi-intelligent-agent.onrender.com/](https://multi-intelligent-agent.onrender.com/)
+
+The live demo provides a REST API for interacting with the autonomous agent system. Access the following endpoints:
+
+- **API Documentation**: [https://multi-intelligent-agent.onrender.com/](https://multi-intelligent-agent.onrender.com/)
+- **Health Check**: [/api/health](https://multi-intelligent-agent.onrender.com/api/health)
+- **Agent Status**: [/api/agent/status](https://multi-intelligent-agent.onrender.com/api/agent/status)
+- **Demo Scenarios**: [/api/demo/scenarios](https://multi-intelligent-agent.onrender.com/api/demo/scenarios)
+
+> **Note**: The demo runs in FREEZE mode with strict safety controls. See [DEMO_WALKTHROUGH.md](DEMO_WALKTHROUGH.md) for detailed usage instructions.
+
+---
+
+## 🚀 How to Run the Demo (3 Steps)
+
+### Option A: Use the Live Demo (Recommended)
+
+1. **Access the API**: Open [https://multi-intelligent-agent.onrender.com/](https://multi-intelligent-agent.onrender.com/) in your browser
+2. **Test an endpoint**: Try [/api/agent/status](https://multi-intelligent-agent.onrender.com/api/agent/status) to see the agent state
+3. **Trigger a demo scenario**: Use `curl` or Postman to POST to `/api/demo/crash` or `/api/demo/overload`
+
+### Option B: Run Locally with Docker
+
+1. **Clone and start**: `git clone <repo-url> && cd Multi-Intelligent-agent-system-main && docker-compose up --build -d`
+2. **Access dashboards**: Main dashboard at http://localhost:8501, Observability at http://localhost:8502
+3. **Run demo**: `python demo_run.py` to see the full autonomous agent in action
+
+### Option C: Run Locally without Docker
+
+1. **Install and run**: `pip install -r requirements.txt && python agent_runtime.py --env stage`
+2. **Monitor logs**: Check `logs/agent/agent_runtime.log` for real-time agent decisions
+3. **View status**: Run `python -c "from agent_runtime import AgentRuntime; print(AgentRuntime('stage').get_agent_status())"`
+
+---
+
+## ✅ What This System Will Do
+
+This autonomous AI agent system is designed to **safely manage CI/CD operations** with the following capabilities:
+
+### 1. **Application Onboarding** 📝
+- Accepts text-based application specifications (app name, repo URL, runtime)
+- Validates inputs using **deterministic rules** (no guessing or inference)
+- Generates standardized configuration files (`app_spec.json`)
+- Triggers automated deployment to appropriate environments
+
+### 2. **Continuous Monitoring** 👁️
+- Monitors running applications for failures, crashes, and performance issues
+- Tracks key metrics: CPU usage, memory consumption, response times, error rates
+- Detects anomalies using threshold-based rules (no black-box ML)
+- Logs all events to multiple sinks (Redis, CSV, metrics systems)
+
+### 3. **Intelligent Decision Making** 🧠
+- Uses **Reinforcement Learning (Q-learning)** to optimize recovery strategies
+- Operates in two modes:
+  - **Stage/Demo**: Deterministic, predictable decisions for demos
+  - **Production**: Adaptive learning from past successes/failures
+- Makes safe action recommendations: restart, scale, noop
+- **Never executes actions directly** - always goes through safety validation
+
+### 4. **Automated Failure Recovery** 🔧
+- **Crash Detection → Restart**: Automatically restarts crashed services
+- **Overload Detection → Scale**: Scales workers when CPU/memory is high
+- **False Alarm → Noop**: Ignores benign anomalies (no false positives)
+- Recovery decisions logged with full audit trail
+
+### 5. **Multi-Layer Safety System** 🛡️
+- **Input Validation**: Rejects malformed data, injection attempts, invalid URLs
+- **RL Intake Gate**: All orchestrator actions must come through RL layer
+- **Demo Mode Protection**: Allowlist-based execution in stage environment
+- **Production Safety Guards**: Blocks dangerous operations (deletes, rollbacks)
+- **Environment Isolation**: Dev/stage/prod completely separated
+
+### 6. **Comprehensive Observability** 📊
+- **Structured Logging**: Every decision logged with timestamps and context
+- **Proof Logs**: Immutable audit trail for compliance (JSONL format)
+- **Real-time Dashboards**: Streamlit-based visualization of system state
+- **Metrics Collection**: Time-series data for performance analysis
+
+### 7. **Self-Restraint & Governance** 🚦
+- **Uncertainty Blocking**: Refuses to act when confidence < 0.4
+- **Signal Conflict Detection**: Enters observe-only mode when signals disagree
+- **Cooldown Enforcement**: Prevents rapid repeated actions
+- **Memory-Based Override**: Blocks actions after repeated failures
+
+---
+
+## 🚫 What This System Will NEVER Do
+
+To ensure safety and trustworthiness, this system has **hard-coded constraints** that prevent dangerous operations:
+
+### 1. **No Data Modification or Deletion** ⛔
+- Will **never** delete production data, databases, or backups
+- Will **never** modify user data, records, or transactions
+- Will **never** access or change credentials, secrets, or API keys
+- Will **never** execute arbitrary SQL queries or database commands
+
+### 2. **No System-Level Modifications** 🔒
+- Will **never** execute arbitrary shell commands
+- Will **never** install software, packages, or system dependencies
+- Will **never** modify system files, kernel settings, or network configuration
+- Will **never** change security settings, permissions, or authentication
+
+### 3. **No Autonomous Production Deployment** 🚨
+- Will **never** deploy to production without explicit human approval
+- Will **never** perform rollbacks autonomously (requires human decision)
+- Will **never** bypass production safety gates or override workflows
+- Will **never** make destructive changes to live infrastructure
+
+### 4. **No Guessing or Inference** 🎲
+- Will **never** infer missing configuration fields using AI/ML
+- Will **never** auto-correct invalid inputs (rejects instead)
+- Will **never** make assumptions about user intent
+- Uses **template-based generation only** - no generative AI for configs
+
+### 5. **No Silent Failures** 🔊
+- Will **never** hide errors, warnings, or safety blocks
+- Will **never** retry unsafe actions after refusal
+- Will **never** operate without validation and logging
+- All failures explicitly logged with detailed reasons
+
+### 6. **No Cross-Environment Contamination** 🏝️
+- Will **never** leak data between dev/stage/prod environments
+- Will **never** use production credentials in staging
+- Will **never** deploy stage code to production accidentally
+- Environment separation enforced at all layers
+
+### 7. **No Untracked Actions** 📝
+- Will **never** execute "off-the-books" operations
+- Will **never** bypass audit logging or proof trails
+- Will **never** perform actions without RL decision approval
+- Every action logged with timestamp, source, and justification
+
+### 8. **No Overconfidence** 🧐
+- Will **never** act on low-confidence decisions (threshold: 0.4)
+- Will **never** bypass uncertainty checks in favor of "trying anyway"
+- Will **never** ignore conflicting signals from multiple sources
+- Defaults to **NOOP** when uncertain rather than risking mistakes
+
+### 9. **No Scope Creep** 🎯
+- Scope limited to **infrastructure operations only**: restart, scale, monitor
+- Will **never** extend capabilities beyond predefined action set
+- Will **never** add actions to allowlist without code changes
+- Safe action set is hard-coded and immutable at runtime
+
+---
+
+## 🤝 What This System Claims vs. Reality
+
+### Honest Capability Statement
+
+| **Claim** | **Reality** | **Verification** |
+|-----------|-------------|------------------|
+| "Autonomous AI Agent" | ✅ True - runs continuously without manual triggers | Check `logs/agent/agent_runtime.log` for heartbeats |
+| "Intelligent Self-Healing" | ⚠️ Partially - uses RL for recovery, but deterministic in stage | See `DEMO_MODE=true` in config |
+| "Production-Ready" | ⚠️ Demo-ready - production requires human oversight gates | Check safety guards in `core/action_governance.py` |
+| "Reinforcement Learning" | ✅ True - Q-learning for action optimization | See `core/rl_orchestrator_safe.py` |
+| "Multi-Agent System" | ✅ True - deploy agents, monitors, RL optimizer work independently | Check `docker-compose.yml` |
+| "100% Automated" | ❌ False - critical changes require human approval | See `DEMO_FREEZE_MODE` constraints |
+
+### No Over-Claimed Autonomy
+
+We explicitly **do not claim**:
+- ❌ Full autonomy without human oversight
+- ❌ General-purpose AI capabilities
+- ❌ Production deployment without approval workflows
+- ❌ Black-box decision making (all decisions are explainable)
+- ❌ Zero-error operation (failures are expected and handled safely)
+
+---
+
 ## 📋 System Architecture
 
 ```

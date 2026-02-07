@@ -241,3 +241,44 @@ if __name__ == "__main__":
         success = cli_interface()
     
     sys.exit(0 if success else 1)
+
+def process_onboarding_request(request_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Process onboarding request from API
+    
+    Args:
+        request_data: Dict with keys: app_name, repo_url, runtime, env (optional)
+    
+    Returns:
+        Dict with keys: success, spec_file, message
+    """
+    onboarder = OnboardingEntry()
+    
+    app_name = request_data.get('app_name')
+    repo_url = request_data.get('repo_url')  
+    runtime = request_data.get('runtime')
+    
+    # Validate required fields
+    if not all([app_name, repo_url, runtime]):
+        return {
+            'success': False,
+            'message': 'Missing required fields: app_name, repo_url, runtime',
+            'spec_file': None
+        }
+    
+    # Process onboarding
+    success = onboarder.process(repo_url, app_name, runtime)
+    
+    if success:
+        spec_file = f"{onboarder.output_dir}/{app_name}.json"
+        return {
+            'success': True,
+            'spec_file': spec_file,
+            'message': f'Successfully onboarded {app_name}'
+        }
+    else:
+        return {
+            'success': False,
+            'spec_file': None,
+            'message': 'Onboarding validation failed'
+        }
