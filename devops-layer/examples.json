@@ -1,0 +1,93 @@
+{
+  "day1_runtime_consumption": {
+    "valid_event": {
+      "description": "Valid runtime event from Shivam's normalizer",
+      "input": {
+        "app": "web",
+        "env": "prod",
+        "state": "critical",
+        "latency_ms": 6000,
+        "errors_last_min": 15,
+        "timestamp": "2026-01-26T13:51:04.666093"
+      },
+      "adapted_state": {
+        "app": "web",
+        "env": "prod",
+        "state": "critical",
+        "latency_ms": 6000,
+        "errors_last_min": 15
+      },
+      "output": {
+        "action": "restart",
+        "reason": "Decision made based on runtime signals",
+        "timestamp": "2026-01-26T13:51:04.666093",
+        "reward_computed": false,
+        "learning_active": false
+      }
+    },
+    "missing_required_signal": {
+      "description": "Event missing required 'env' signal → NOOP",
+      "input": {
+        "app": "web",
+        "state": "critical",
+        "latency_ms": 6000
+      },
+      "output": {
+        "action": "noop",
+        "reason": "Invalid runtime event: Missing required signals: ['env']",
+        "timestamp": "2026-01-26T13:51:04.667094",
+        "reward_computed": false,
+        "learning_active": false
+      }
+    },
+    "malformed_value": {
+      "description": "Event with malformed latency_ms → NOOP",
+      "input": {
+        "app": "web",
+        "env": "prod",
+        "state": "critical",
+        "latency_ms": "not_a_number"
+      },
+      "output": {
+        "action": "noop",
+        "reason": "Invalid runtime event: latency_ms must be a non-negative number",
+        "timestamp": "2026-01-26T13:51:04.667094",
+        "reward_computed": false,
+        "learning_active": false
+      }
+    },
+    "delayed_signal": {
+      "description": "Delayed signal (>5min old) → NOOP",
+      "input": {
+        "app": "web",
+        "env": "prod",
+        "state": "critical",
+        "timestamp": 1769415264.667094
+      },
+      "output": {
+        "action": "noop",
+        "reason": "Delayed signal - too old for decision",
+        "timestamp": "2026-01-26T13:51:04.668094",
+        "reward_computed": false,
+        "learning_active": false
+      }
+    }
+  },
+  "day2_examples": {
+    "before_correction": {
+      "description": "Before: RL assumed signals and made aggressive decisions",
+      "input": {"app": "web", "state": "healthy"},
+      "output": {"action": "scale_up", "reason": "Assumed healthy means scale up"}
+    },
+    "after_correction": {
+      "description": "After: RL requires all signals, NOOP on insufficient data",
+      "input": {"app": "web", "state": "healthy"},
+      "output": {"action": "noop", "reason": "Missing required signals: ['env']"}
+    }
+  },
+  "deterministic_decisions": {
+    "description": "Same input always produces same output - no learning",
+    "test1": {"input": {"app": "web", "env": "prod", "state": "critical"}, "output": {"action": "restart"}},
+    "test2": {"input": {"app": "web", "env": "prod", "state": "critical"}, "output": {"action": "restart"}}
+  }
+}

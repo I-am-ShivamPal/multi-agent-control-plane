@@ -50,11 +50,11 @@ def render_apps_overview():
     apps_data = []
     for app in apps:
         apps_data.append({
-            'Name': app['name'],
-            'Type': app['type'],
+            'Name': app.get('name', 'Unknown'),
+            'Type': app.get('type', 'N/A'),
             'Port': app.get('port', 'N/A'),
-            'Environments': ', '.join(app['environments']),
-            'Onboarded': app.get('onboarded_at', 'N/A')[:10]
+            'Environments': ', '.join(app.get('environments', ['N/A'])),
+            'Onboarded': str(app.get('onboarded_at', 'N/A'))[:10]
         })
     
     df = pd.DataFrame(apps_data)

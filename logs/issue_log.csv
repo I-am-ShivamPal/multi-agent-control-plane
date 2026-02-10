@@ -1,3 +1,0 @@
-timestamp,failure_state,reason
-2024-01-01 01:30:00,deployment_failure,Build failed
-2024-01-01 04:30:00,latency_issue,High response time
