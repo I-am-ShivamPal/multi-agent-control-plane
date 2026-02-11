@@ -36,13 +36,15 @@ The live demo provides a REST API for interacting with the autonomous agent syst
 
 1. **Clone and start**: `git clone <repo-url> && cd Multi-Intelligent-agent-system-main && docker-compose up --build -d`
 2. **Access dashboards**: Main dashboard at http://localhost:8501, Observability at http://localhost:8502
-3. **Run demo**: `python demo_run.py` to see the full autonomous agent in action
+3. **Run demo**: `python _demos/demo_run.py` to see the full autonomous agent in action
 
 ### Option C: Run Locally without Docker
 
 1. **Install and run**: `pip install -r requirements.txt && python agent_runtime.py --env stage`
 2. **Monitor logs**: Check `logs/agent/agent_runtime.log` for real-time agent decisions
 3. **View status**: Run `python -c "from agent_runtime import AgentRuntime; print(AgentRuntime('stage').get_agent_status())"`
+
+> **Note**: See [ENTRY_POINT.md](ENTRY_POINT.md) for detailed entry point documentation and [STRUCTURE.md](STRUCTURE.md) for repository structure.
 
 ---
 
@@ -320,10 +322,10 @@ python deploy.py --env stage --planner rl --force-anomaly
 python deploy.py --env prod --planner rl
 
 # Launch main dashboard (includes Risk Category vs Timestamp visualization)
-streamlit run dashboard/dashboard.py
+streamlit run ui/dashboards/dashboard.py
 
 # Launch observability dashboard
-streamlit run dashboard/observability_dashboard.py
+streamlit run ui/dashboards/observability_dashboard.py
 
 # Run with Docker (with health checks)
 docker-compose up --build -d
@@ -360,7 +362,7 @@ python demo_proof_orchestrator.py
 Run the complete system demo in a single command:
 
 ```bash
-python demo_run.py
+python _demos/demo_run.py
 ```
 
 This demonstrates the full CI/CD pipeline flow with automated failure recovery:
