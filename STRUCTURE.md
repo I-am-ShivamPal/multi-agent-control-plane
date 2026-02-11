@@ -9,8 +9,9 @@ This repository contains a multi-agent CI/CD system with autonomous operation, r
 Multi-agent system components for deployment, monitoring, and orchestration.
 
 ### `/core` - Core System Logic
-- `/rl` - Reinforcement learning decision engine
-  - `/external_api` - Ritesh's RL API integration (demo-frozen)
+- `/rl` - Reinforcement learning decision engines
+  - `/external_api` - Ritesh's RL API (demo-frozen for production)
+  - `/rityadani_decision_layer` - Rityadani's rule-based RL with dashboard
 - `action_governance.py` - Action safety validation
 - `memory_*.py` - Agent memory management
 - `perception_*.py` - Environment perception
@@ -139,6 +140,7 @@ Located in `core/rl/external_api/`, provides demo-frozen reinforcement learning 
 - ✅ Removed nested `Multi-intelligent-agent/` subfolder duplication
 - ✅ Consolidated all demos into `_demos/` directory
 - ✅ Integrated Ritesh's RL API into `core/rl/external_api/`
+- ✅ Integrated Rityadani's RL Decision Layer into `core/rl/rityadani_decision_layer/`
 - ✅ Reorganized UI components into unified `ui/` directory
 - ✅ Established clear entry point hierarchy
 
