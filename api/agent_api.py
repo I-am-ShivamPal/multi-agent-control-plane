@@ -4,7 +4,7 @@ Provides REST endpoints for agent status, onboarding, and demo triggers.
 Enables terminal-free demos and agent visibility.
 """
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
 import os
 import sys
@@ -458,6 +458,22 @@ def get_rl_info():
 
 @app.route('/', methods=['GET'])
 def index():
+    """Serve the dashboard HTML."""
+    dashboard_path = os.path.join(root_dir, 'core', 'rl', 'external_api', 'advanced_dashboard.html')
+    if os.path.exists(dashboard_path):
+        return send_file(dashboard_path)
+    return jsonify({'error': 'Dashboard not found'}), 404
+
+@app.route('/dashboard', methods=['GET'])
+def dashboard():
+    """Serve the dashboard HTML."""
+    dashboard_path = os.path.join(root_dir, 'core', 'rl', 'external_api', 'advanced_dashboard.html')
+    if os.path.exists(dashboard_path):
+        return send_file(dashboard_path)
+    return jsonify({'error': 'Dashboard not found'}), 404
+
+@app.route('/api', methods=['GET'])
+def api_docs():
     """API documentation."""
     docs = {
         'service': 'Multi-Agent CI/CD API',
