@@ -2,26 +2,28 @@ import argparse
 import os
 import csv
 import datetime
+import sys
 
 # CRITICAL: Prevent this simulation script from running on Render
 # This file is ONLY for local CI/CD simulations, NOT for production deployment
 if os.getenv('RENDER') == 'true' or os.getenv('SKIP_SIMULATIONS') == 'true':
     print("⚠️  Skipping CI/CD simulation (production/Render environment detected)")
     print("✅ Use wsgi.py for Flask API server")
-    exit(0)
-
-from agents.deploy_agent import DeployAgent
-from agents.issue_detector import IssueDetector
-from agents.uptime_monitor import UptimeMonitor
-from agents.auto_heal_agent import AutoHealAgent
-from rl.rl_trainer import RLTrainer
-from utils import simulate_data_change, trigger_dashboard_deployment
-from feedback.feedback_handler import get_user_feedback_from_terminal, log_user_feedback
-from config import THRESHOLDS
-from core.env_config import EnvironmentConfig
-from core.mcp_bridge import mcp_bridge
-from core.mcp_manager import MCPManager
-from core.mcp_adapter import MCPAdapter
+    # Don't import anything or execute further - just define empty module
+else:
+    # Only import if NOT on Render
+    from agents.deploy_agent import DeployAgent
+    from agents.issue_detector import IssueDetector
+    from agents.uptime_monitor import UptimeMonitor
+    from agents.auto_heal_agent import AutoHealAgent
+    from rl.rl_trainer import RLTrainer
+    from utils import simulate_data_change, trigger_dashboard_deployment
+    from feedback.feedback_handler import get_user_feedback_from_terminal, log_user_feedback
+    from config import THRESHOLDS
+    from core.env_config import EnvironmentConfig
+    from core.mcp_bridge import mcp_bridge
+    from core.mcp_manager import MCPManager
+    from core.mcp_adapter import MCPAdapter
 
 # --- Main Simulation Loop ---
 if __name__ == "__main__":

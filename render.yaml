@@ -30,7 +30,7 @@ services:
     # Prevent main.py from auto-running
     preDeployCommand: echo "Skipping simulations - API mode only"
     # Use wsgi.py entry point for proper initialization
-    startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 1 --timeout 120 --log-level info --preload
+    startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 1 --timeout 120 --log-level info
     envVars:
       - key: DEMO_MODE
         value: "true"
