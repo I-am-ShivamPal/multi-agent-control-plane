@@ -45,5 +45,5 @@ EXPOSE 8501 8080 5000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import os; exit(0 if os.path.exists('/app/logs') else 1)"
 
-# Default command (can be overridden in docker-compose)
-CMD ["python", "main.py", "--dataset", "dataset/student_scores.csv", "--planner", "rl"]
+# Default command - Flask API server with Gunicorn
+CMD ["gunicorn", "wsgi:app", "--bind", "0.0.0.0:$PORT", "--workers", "1", "--timeout", "120"]
