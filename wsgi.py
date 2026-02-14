@@ -20,5 +20,5 @@ from api.agent_api import app
 if __name__ == '__main__':
     # This block only runs for local development
     port = int(os.getenv('PORT', 5000))
-    print(f"🚀 Starting Agent API on port {port}")
+    print(f"Starting Agent API on port {port}")
     app.run(host='0.0.0.0', port=port, debug=False)

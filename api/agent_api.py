@@ -533,9 +533,9 @@ if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
     debug = os.getenv('FLASK_ENV') != 'production'
     
-    print(f"🚀 Agent API Server starting on port {port}")
-    print(f"📊 Demo Mode: {is_demo_mode_active()}")
-    print(f"🔒 Freeze Mode: {is_freeze_mode_active()}")
-    print(f"📍 Access API documentation at: http://localhost:{port}/")
+    print(f"Agent API Server starting on port {port}")
+    print(f"Demo Mode: {is_demo_mode_active()}")
+    print(f"Freeze Mode: {is_freeze_mode_active()}")
+    print(f"Access API documentation at: http://localhost:{port}/")
     
     app.run(host='0.0.0.0', port=port, debug=debug)
