@@ -40,3 +40,5 @@ services:
         value: "1"
       - key: SKIP_SIMULATIONS
         value: "true"
+      - key: RENDER
+        value: "true"

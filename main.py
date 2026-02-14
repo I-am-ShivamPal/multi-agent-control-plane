@@ -2,6 +2,14 @@ import argparse
 import os
 import csv
 import datetime
+
+# CRITICAL: Prevent this simulation script from running on Render
+# This file is ONLY for local CI/CD simulations, NOT for production deployment
+if os.getenv('RENDER') == 'true' or os.getenv('SKIP_SIMULATIONS') == 'true':
+    print("⚠️  Skipping CI/CD simulation (production/Render environment detected)")
+    print("✅ Use wsgi.py for Flask API server")
+    exit(0)
+
 from agents.deploy_agent import DeployAgent
 from agents.issue_detector import IssueDetector
 from agents.uptime_monitor import UptimeMonitor
