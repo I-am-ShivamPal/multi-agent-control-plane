@@ -27,8 +27,10 @@ services:
     name: multi-intelligent-agent-api
     env: python
     buildCommand: pip install -r requirements.txt
+    # Prevent main.py from auto-running
+    preDeployCommand: echo "Skipping simulations - API mode only"
     # Use wsgi.py entry point for proper initialization
-    startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 1 --timeout 120 --log-level info
+    startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 1 --timeout 120 --log-level info --preload
     envVars:
       - key: DEMO_MODE
         value: "true"
@@ -36,3 +38,5 @@ services:
         value: "true"
       - key: PYTHONUNBUFFERED
         value: "1"
+      - key: SKIP_SIMULATIONS
+        value: "true"
