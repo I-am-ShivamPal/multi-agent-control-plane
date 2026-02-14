@@ -459,7 +459,7 @@ def get_rl_info():
 @app.route('/', methods=['GET'])
 def index():
     """Serve the dashboard HTML."""
-    dashboard_path = os.path.join(root_dir, 'core', 'rl', 'external_api', 'advanced_dashboard.html')
+    dashboard_path = os.path.join(root_dir, 'static', 'dashboard.html')
     if os.path.exists(dashboard_path):
         return send_file(dashboard_path)
     return jsonify({'error': 'Dashboard not found'}), 404
@@ -467,7 +467,7 @@ def index():
 @app.route('/dashboard', methods=['GET'])
 def dashboard():
     """Serve the dashboard HTML."""
-    dashboard_path = os.path.join(root_dir, 'core', 'rl', 'external_api', 'advanced_dashboard.html')
+    dashboard_path = os.path.join(root_dir, 'static', 'dashboard.html')
     if os.path.exists(dashboard_path):
         return send_file(dashboard_path)
     return jsonify({'error': 'Dashboard not found'}), 404
