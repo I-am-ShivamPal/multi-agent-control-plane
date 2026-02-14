@@ -69,7 +69,8 @@ class SafeOrchestrator:
                 'action_executed': action,
                 'success': True,
                 'timestamp': timestamp,
-                'safety_override': False
+                'safety_override': False,
+                'confidence': 1.0  # Explicit confidence for arbitration
             })
         except Exception as e:
             result = {

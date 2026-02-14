@@ -399,34 +399,54 @@ with tab3:
 
 # TAB 4: RL Analytics
 with tab4:
-    if view_mode == "Developer Mode":
-        st.header("🎯 RL Analytics")
-        
-        # Q-Table Display
-        st.subheader("Q-Table Heatmap")
-        if not q_table_df.empty:
-            try:
-                st.info("Q-values: Higher values (brighter) indicate better learned strategies")
-                st.dataframe(q_table_df, width='stretch')
-            except Exception as e:
-                st.error(f"Error displaying Q-table: {str(e)}")
-        else:
-            st.warning("No Q-table data available")
-        
-        # Reward Trends
-        st.subheader("Reward Trends")
-        if not reward_trend_df.empty:
-            try:
-                x_col = 'episode' if 'episode' in reward_trend_df.columns else reward_trend_df.columns[0]
-                y_col = 'reward' if 'reward' in reward_trend_df.columns else 'avg_reward' if 'avg_reward' in reward_trend_df.columns else reward_trend_df.columns[1]
-                chart_data = reward_trend_df.set_index(x_col)[y_col]
-                st.line_chart(chart_data)
-            except Exception as e:
-                st.error(f"Error plotting rewards: {str(e)}")
-        else:
-            st.info("No reward data available")
+    st.header("🎯 RL Analytics (Stateless Brain)")
+    
+    proof_log_path = os.path.join("logs", "day1_proof.log")
+    
+    if os.path.exists(proof_log_path):
+        try:
+            # Read JSONL proof log
+            entries = []
+            with open(proof_log_path, 'r') as f:
+                for line in f:
+                    try:
+                        entry = json.loads(line)
+                        if entry.get('event_name') == 'RL_DECISION':
+                            entries.append(entry)
+                    except:
+                        pass
+            
+            if entries:
+                # Convert to DataFrame
+                df = pd.DataFrame(entries)
+                
+                # Show key metrics
+                st.metric("Total Decisions", len(df))
+                
+                # Action Distribution
+                if 'decision_str' in df.columns:
+                    st.subheader("Action Distribution")
+                    st.bar_chart(df['decision_str'].value_counts())
+                
+                # Recent Decisions Table
+                st.subheader("Recent Decisions Log")
+                
+                # Flatten payload for better visibility
+                display_cols = ['timestamp', 'env', 'event_type', 'decision_str', 'status']
+                
+                # Filter to available columns
+                available_cols = [c for c in display_cols if c in df.columns]
+                
+                st.dataframe(df[available_cols].sort_values('timestamp', ascending=False).head(50), width='stretch')
+                
+            else:
+                st.info("No RL decisions recorded yet in proof log.")
+                
+        except Exception as e:
+            st.error(f"Error reading proof log: {str(e)}")
     else:
-        st.info("RL Analytics available in Developer Mode")
+        st.warning(f"Proof log not found at {proof_log_path}")
+        st.info("Run the agent to generate decision data.")
 
 # TAB 5: QA Metrics
 with tab5:

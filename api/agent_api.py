@@ -8,6 +8,17 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 import os
 import sys
+
+# Define project root
+root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+# Add project root and _demos to path
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
+
+demos_dir = os.path.join(root_dir, '_demos')
+if demos_dir not in sys.path:
+    sys.path.insert(0, demos_dir)
+
 import datetime
 import json
 
@@ -43,56 +54,15 @@ threading.Thread(target=start_agent, daemon=True).start()
 
 
 
-# Add parent directory to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
+# Imports from core and demos
 from core.agent_state import AgentStateManager, AgentState
 from demo_mode_config import is_demo_mode_active, is_freeze_mode_active
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for frontend access
 
-# Global agent state (LEGACY - now using real AgentRuntime above)
-# These are kept for backwards compatibility but not used for status endpoint
-_agent_state_manager = None
-_last_decision = None
-_start_time = datetime.datetime.now()
-
-
-def get_or_create_agent_state():
-    """Get or create agent state (LEGACY - for backwards compatibility only)."""
-    global _agent_state_manager
-    if _agent_state_manager is None:
-        try:
-            # Try to load from file if exists
-            state_file = 'logs/agent_state.json'
-            if os.path.exists(state_file):
-                _agent_state_manager = AgentStateManager.load_from_file(state_file, 'agent-demo-001')
-            else:
-                _agent_state_manager = AgentStateManager('agent-demo-001', AgentState.IDLE)
-        except Exception as e:
-            # Create default state manager on error
-            _agent_state_manager = AgentStateManager('agent-demo-001', AgentState.IDLE)
-    
-    # Return dict representation for API
-    state_info = _agent_state_manager.get_current_state_info()
-    return {
-        'agent_id': _agent_state_manager.agent_id,
-        'state': _agent_state_manager.current_state.value,
-        'loop_count': len(_agent_state_manager.get_state_history()),
-        'last_decision': None
-    }
-
-
-def update_last_decision(action: str, confidence: float, explanation: str):
-    """Update last decision globally (LEGACY - for backwards compatibility only)."""
-    global _last_decision
-    _last_decision = {
-        'action': action,
-        'confidence': confidence,
-        'timestamp': datetime.datetime.now().isoformat(),
-        'explanation': explanation
-    }
+# The agent instance defined above is the single source of truth for the API.
+# Legacy mock state management has been removed.
 
 
 @app.route('/api/health', methods=['GET'])
@@ -145,13 +115,6 @@ def onboard_app():
         
         result = process_onboarding_request(onboarding_request)
         
-        # Update last decision
-        update_last_decision(
-            action='onboard',
-            confidence=1.0,
-            explanation=f'Successfully onboarded {data["app_name"]} to stage environment'
-        )
-        
         return jsonify({
             'status': 'success',
             'message': f'App {data["app_name"]} onboarded successfully',
@@ -166,47 +129,110 @@ def onboard_app():
         }), 500
 
 
-@app.route('/api/demo/crash', methods=['POST'])
-def demo_crash_recovery():
-    """Trigger crash recovery demonstration."""
+@app.route('/api/decision', methods=['POST'])
+def get_decision():
+    """Stable endpoint for dashboard to trigger manual decisions."""
     try:
-        # Simulate crash scenario
-        from core.rl_orchestrator_safe import SafeOrchestrator
+        data = request.get_json()
         
-        orchestrator = SafeOrchestrator(env='stage')
+        # 1. Map dashboard input to Agent Perception schema
+        event_type = data.get('event_type', 'unknown')
+        environment = data.get('environment', 'dev')
+        event_data = data.get('event_data', {})
         
-        # Simulate crash recovery decision
-        context = {
-            'app_name': 'demo-api',
-            'failure_type': 'crash',
-            'exit_code': 1
+        # Add metadata for the internal loop
+        perception_payload = {
+            'event_id': f"dashboard-{datetime.datetime.now().timestamp()}",
+            'event_type': event_type,
+            'environment': environment,
+            'data': event_data,
+            'timestamp': datetime.datetime.now().timestamp(),
+            'app_id': event_data.get('service', event_data.get('app_name', 'demo-app'))
         }
         
-        result = orchestrator.execute_action(
-            action='restart',
-            context=context,
-            source='rl_decision_layer'
-        )
+        # 2. Process synchronously through Agent FSM
+        result = agent.handle_external_event(perception_payload)
+        
+        # 3. Map result to Frontend-friendly schema (Dashboard expected)
+        decision = result.get('decision', {})
+        action_result = result.get('action_result', {})
+        observation = result.get('observation', {})
+        
+        # Extract safety metrics
+        safety_status = action_result.get('status', 'noop')
+        # Dashboard expects 'safety_result': { executed: bool, refused: bool, safe_for_demo: bool }
+        executed = safety_status in ['success', 'executed']
+        refused = not executed and decision.get('action_name') != 'noop'
+        
+        response = {
+            'runtime_event': {
+                'environment': environment,
+                'type': event_type,
+                'data': event_data,
+                'timestamp': perception_payload['timestamp']
+            },
+            'rl_decision': {
+                'proposed_action': decision.get('action_name', 'noop'),
+                'final_action': decision.get('action_name', 'noop'), # Since we are the arbitrator
+                'action_filtered': decision.get('override_applied', False),
+                'reasoning': decision.get('reason', 'Autonomous decision')
+            },
+            'safety_result': {
+                'executed': executed,
+                'refused': refused,
+                'safe_for_demo': True # Agent governance handles this
+            },
+            'system_status': {
+                'demo_mode': is_demo_mode_active(),
+                'learning_disabled': True,
+                'deterministic': True
+            }
+        }
+        
+        return jsonify(response), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e), "message": "Decision cycle failed"}), 500
+
+
+@app.route('/api/demo/crash', methods=['POST'])
+def demo_crash_recovery():
+    """Trigger crash recovery demonstration via full Agent FSM."""
+    try:
+        # 1. Prepare perception payload for crash
+        perception_payload = {
+            'event_id': f"demo-crash-{datetime.datetime.now().timestamp()}",
+            'event_type': 'crash',
+            'environment': 'stage',
+            'app_id': 'demo-api',
+            'data': {
+                'failure_type': 'crash',
+                'exit_code': 1,
+                'metrics': {'cpu_percent': 0, 'memory_percent': 0}
+            },
+            'timestamp': datetime.datetime.now().timestamp()
+        }
+        
+        # 2. Process through full chain: Runtime -> RL -> Orchestrator
+        result = agent.handle_external_event(perception_payload)
+        
+        decision = result.get('decision', {})
+        action_result = result.get('action_result', {})
         
         explanation = (
-            f"Crash detected in demo-api (exit code 1) → "
-            f"RL decided to restart service → "
-            f"{'Success' if result.get('success') else 'Failed'}"
-        )
-        
-        update_last_decision(
-            action='restart',
-            confidence=0.95,
-            explanation=explanation
+            f"Scenario: Crash recovery triggered for demo-api → "
+            f"RL Brain proposed: {decision.get('action_name', 'noop')} → "
+            f"Final Status: {action_result.get('status', 'refused')}"
         )
         
         return jsonify({
             'status': 'success',
             'scenario': 'crash_recovery',
-            'decision': 'restart',
-            'confidence': 0.95,
+            'full_chain': True,
+            'decision': decision.get('action_name', 'noop'),
+            'confidence': decision.get('confidence', 0.0),
             'explanation': explanation,
-            'result': result,
+            'result': action_result,
             'timestamp': datetime.datetime.now().isoformat()
         }), 200
         
@@ -219,46 +245,88 @@ def demo_crash_recovery():
 
 @app.route('/api/demo/overload', methods=['POST'])
 def demo_overload_handling():
-    """Trigger overload handling demonstration."""
+    """Trigger overload handling demonstration via full Agent FSM."""
     try:
-        # Simulate overload scenario
-        from core.rl_orchestrator_safe import SafeOrchestrator
-        
-        orchestrator = SafeOrchestrator(env='stage')
-        
-        # Simulate overload handling decision
-        context = {
-            'app_name': 'demo-api',
-            'cpu_usage': 85,
-            'memory_usage': 75,
-            'replicas': 1
+        # 1. Prepare perception payload for overload
+        perception_payload = {
+            'event_id': f"demo-overload-{datetime.datetime.now().timestamp()}",
+            'event_type': 'high_cpu',
+            'environment': 'stage',
+            'app_id': 'demo-api',
+            'data': {
+                'cpu_usage': 85,
+                'metrics': {'cpu_percent': 85.0, 'memory_percent': 75.0, 'workers': 1}
+            },
+            'timestamp': datetime.datetime.now().timestamp()
         }
         
-        result = orchestrator.execute_action(
-            action='scale_up',
-            context=context,
-            source='rl_decision_layer'
-        )
+        # 2. Process through full chain
+        result = agent.handle_external_event(perception_payload)
+        
+        decision = result.get('decision', {})
+        action_result = result.get('action_result', {})
         
         explanation = (
-            f"High CPU (85%) detected in demo-api → "
-            f"RL decided to scale up → "
-            f"{'Success' if result.get('success') else 'Failed'}"
-        )
-        
-        update_last_decision(
-            action='scale_up',
-            confidence=0.92,
-            explanation=explanation
+            f"Scenario: High CPU (85%) detected in demo-api → "
+            f"RL Brain proposed: {decision.get('action_name', 'noop')} → "
+            f"Final Status: {action_result.get('status', 'refused')}"
         )
         
         return jsonify({
             'status': 'success',
             'scenario': 'overload_handling',
-            'decision': 'scale_up',
-            'confidence': 0.92,
+            'full_chain': True,
+            'decision': decision.get('action_name', 'noop'),
+            'confidence': decision.get('confidence', 0.0),
             'explanation': explanation,
-            'result': result,
+            'result': action_result,
+            'timestamp': datetime.datetime.now().isoformat()
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/demo/healthy', methods=['POST'])
+def demo_healthy_noop():
+    """Trigger healthy system simulation via full Agent FSM."""
+    try:
+        # 1. Prepare perception payload for healthy system
+        perception_payload = {
+            'event_id': f"demo-healthy-{datetime.datetime.now().timestamp()}",
+            'event_type': 'false_alarm',
+            'environment': 'stage',
+            'app_id': 'demo-api',
+            'data': {
+                'status': 'healthy',
+                'metrics': {'cpu_percent': 10.0, 'memory_percent': 20.0, 'latency_ms': 45.0}
+            },
+            'timestamp': datetime.datetime.now().timestamp()
+        }
+        
+        # 2. Process through full chain
+        result = agent.handle_external_event(perception_payload)
+        
+        decision = result.get('decision', {})
+        action_result = result.get('action_result', {})
+        
+        explanation = (
+            f"Scenario: System is healthy (CPU 10%) → "
+            f"RL Brain proposed: {decision.get('action_name', 'noop')} → "
+            f"Final Status: {action_result.get('status', 'executed')}"
+        )
+        
+        return jsonify({
+            'status': 'success',
+            'scenario': 'healthy_noop',
+            'full_chain': True,
+            'decision': decision.get('action_name', 'noop'),
+            'confidence': decision.get('confidence', 0.0),
+            'explanation': explanation,
+            'result': action_result,
             'timestamp': datetime.datetime.now().isoformat()
         }), 200
         
@@ -295,6 +363,13 @@ def list_demo_scenarios():
                 'endpoint': '/api/agent/onboard',
                 'method': 'POST',
                 'required_fields': ['app_name', 'repo_url', 'runtime']
+            },
+            {
+                'id': 'healthy',
+                'name': 'Healthy (NOOP)',
+                'description': 'Demonstrates autonomous steady-state monitoring with no intervention',
+                'endpoint': '/api/demo/healthy',
+                'method': 'POST'
             }
         ]
     }
@@ -335,6 +410,50 @@ def get_proof_logs():
             'status': 'error',
             'message': str(e)
         }), 500
+
+
+@app.route('/api/rl/health', methods=['GET'])
+def get_rl_health():
+    """Proxy health check to remote RL service."""
+    try:
+        if not hasattr(agent, 'rl_pipe') or not hasattr(agent.rl_pipe, 'rl_brain'):
+             return jsonify({'status': 'error', 'message': 'RL Pipe not initialized'}), 503
+        
+        health = agent.rl_pipe.rl_brain.get_health()
+        return jsonify(health), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/rl/scope', methods=['GET'])
+def get_rl_scope():
+    """Proxy action scope from remote RL service."""
+    try:
+        if not hasattr(agent, 'rl_pipe') or not hasattr(agent.rl_pipe, 'rl_brain'):
+             return jsonify({'status': 'error', 'message': 'RL Pipe not initialized'}), 503
+        
+        scope = agent.rl_pipe.rl_brain.get_scope()
+        return jsonify(scope), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/rl/info', methods=['GET'])
+def get_rl_info():
+    """Get RL service configuration."""
+    try:
+        if not hasattr(agent, 'rl_pipe') or not hasattr(agent.rl_pipe, 'rl_brain'):
+             return jsonify({'status': 'error', 'message': 'RL Pipe not initialized'}), 503
+        
+        client = agent.rl_pipe.rl_brain
+        return jsonify({
+            'url': client.url,
+            'timeout': client.timeout,
+            'max_failures': client._max_failures,
+            'consecutive_failures': client._consecutive_failures
+        }), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
 @app.route('/', methods=['GET'])

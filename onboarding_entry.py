@@ -24,6 +24,7 @@ class OnboardingEntry:
         self.proof_log = "logs/onboarding_proof.log"
         os.makedirs(self.output_dir, exist_ok=True)
         os.makedirs("logs", exist_ok=True)
+        self.last_error = None
         
         # Import proof logger
         try:
@@ -47,6 +48,7 @@ class OnboardingEntry:
         # Validate input (deterministic, no guessing)
         is_valid, error_message = self._validate_input(repo_url, app_name, runtime_type)
         if not is_valid:
+            self.last_error = error_message
             self._log_proof(self.ProofEvents.ONBOARDING_REJECTED if self.use_proof_logging else None, {
                 'app_name': app_name,
                 'reason': error_message
@@ -280,5 +282,5 @@ def process_onboarding_request(request_data: Dict[str, Any]) -> Dict[str, Any]:
         return {
             'success': False,
             'spec_file': None,
-            'message': 'Onboarding validation failed'
+            'message': onboarder.last_error or 'Onboarding validation failed'
         }

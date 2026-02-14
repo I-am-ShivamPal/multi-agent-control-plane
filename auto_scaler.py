@@ -78,6 +78,27 @@ class AutoScaler:
             return self.multi_agent.work_queue.qsize()
         return 0
     
+    def get_recommendation(self, queue_depth: int) -> dict:
+        """
+        Get scaling recommendation without executing.
+        Used by the Arbitrator.
+        """
+        current_time = time.time()
+        action = self._make_scale_decision(queue_depth, current_time)
+        
+        reason = "queue_depth_within_limits"
+        if action == 'scale_up':
+            reason = f"queue_depth {queue_depth} > threshold {self.scaling_policy['scale_up_threshold']}"
+        elif action == 'scale_down':
+            reason = f"queue_depth {queue_depth} < threshold {self.scaling_policy['scale_down_threshold']}"
+            
+        return {
+            "action": action if action != 'no_action' else 'noop',
+            "reason": reason,
+            "confidence": 1.0,  # Rules are always confident
+            "source": "auto_scaler_rules"
+        }
+
     def _make_scale_decision(self, queue_depth, current_time):
         """Make scaling decision based on policy."""
         cooldown_elapsed = current_time - self.last_scale_action

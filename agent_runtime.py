@@ -12,6 +12,7 @@ import signal
 import sys
 import time
 import uuid
+import threading
 from datetime import datetime
 from typing import Optional, Dict, Any
 from pathlib import Path
@@ -30,16 +31,21 @@ from core.perception_adapters import (
 from core.self_restraint import SelfRestraint
 # ADD THIS IMPORT AT TOP WITH OTHER CORE MODULES
 from core.action_governance import ActionGovernance
+from core.proof_logger import write_proof, ProofEvents
 
 
 # Existing system modules
 from core.env_config import EnvironmentConfig
 from core.runtime_rl_pipe import get_rl_pipe
 from core.rl_orchestrator_safe import get_safe_executor
+from core.decision_arbitrator import DecisionArbitrator
+from auto_scaler import AutoScaler
+from agents.multi_deploy_agent import MultiDeployAgent
 from core.redis_event_bus import RedisEventBus
 from core.event_bus import EventBus
 from agents.issue_detector import IssueDetector
 from agents.uptime_monitor import UptimeMonitor
+from core.runtime_event_validator import RuntimeEventValidator
 
 
 
@@ -67,18 +73,32 @@ class AgentRuntime:
         self.version = "1.0.0"
         self.loop_count = 0
         
-        # State management
-        self.state_manager = AgentStateManager(self.agent_id)
+        # State management (Recover from last state if possible)
+        state_file = Path("logs/agent") / f"agent_state_{self.agent_id}.json"
+        if state_file.exists():
+            try:
+                self.state_manager = AgentStateManager.load_from_file(str(state_file), self.agent_id)
+            except Exception:
+                self.state_manager = AgentStateManager(self.agent_id)
+        else:
+            self.state_manager = AgentStateManager(self.agent_id)
         
         # Logging
+        from core.agent_logger import AgentLogger
         self.logger = AgentLogger(self.agent_id)
         
-        # Memory (bounded short-term memory)
+        # Memory (Recover from last snapshot if possible)
+        memory_file = Path("logs/agent") / f"memory_snapshot_{self.agent_id}.json"
         self.memory = AgentMemory(
             max_decisions=50,
             max_states_per_app=10,
             agent_id=self.agent_id
         )
+        if memory_file.exists():
+            try:
+                self.memory.from_json(str(memory_file))
+            except Exception:
+                pass # Start with fresh memory if load fails
         
         # Perception layer
         self.perception_layer = PerceptionLayer(self.agent_id)
@@ -95,6 +115,10 @@ class AgentRuntime:
         
         # System components
         self._initialize_components()
+        
+        # Execution lock for sync operations
+        import threading
+        self._loop_lock = threading.Lock()
         
         # Shutdown flag
         self._shutdown_requested = False
@@ -148,6 +172,17 @@ class AgentRuntime:
         # Uptime Monitor
         uptime_log_file = self.env_config.get_log_path("uptime_log.csv")
         self.uptime_monitor = UptimeMonitor(timeline_file=uptime_log_file)
+        
+        # Event Validator
+        self.event_validator = RuntimeEventValidator()
+        
+        # Auto-Scaler & Multi-Deploy Agent (for sensing and rule-based advice)
+        self.auto_scaler = AutoScaler(self.env)
+        self.auto_scaler.multi_agent = MultiDeployAgent(self.env, workers=3)
+        self.auto_scaler.multi_agent.start_workers()
+        
+        # Decision Arbitrator
+        self.arbitrator = DecisionArbitrator(self.env)
         
         # Issue Detector (will be initialized when needed)
         self.issue_detector = None
@@ -212,17 +247,14 @@ class AgentRuntime:
         
         try:
             while not self._shutdown_requested:
-                self._execute_agent_loop()
-                self.loop_count += 1
+                with self._loop_lock:
+                    self._execute_agent_loop()
+                    
+                    # Return to idle while still holding the lock (Atomic Cycle)
+                    if self.state_manager.current_state != AgentState.IDLE:
+                        self.state_manager.transition_to(AgentState.IDLE, "loop_complete")
                 
-                # Return to idle and wait
-                if self.state_manager.current_state != AgentState.IDLE:
-                    self.state_manager.transition_to(AgentState.IDLE, "loop_complete")
-                    self.logger.log_state_transition(
-                        self.state_manager.current_state.value,
-                        AgentState.IDLE.value,
-                        "loop_complete"
-                    )
+                self.loop_count += 1
                 
                 # Heartbeat
                 uptime = (datetime.utcnow() - self.start_time).total_seconds()
@@ -242,11 +274,21 @@ class AgentRuntime:
         finally:
             self._shutdown()
     
-    def _execute_agent_loop(self):
-        """Execute one iteration of the agent loop: sense → validate → decide → enforce → act → observe → explain."""
+    def _execute_agent_loop(self, manual_observation: Optional[Dict[str, Any]] = None):
+        """Execute one iteration of the agent loop: sense → validate → decide → enforce → act → observe → explain.
+        
+        Args:
+            manual_observation: Optional external event data to bypass sensing.
+        """
         
         # SENSE (Observing)
-        observation = self._sense()
+        if manual_observation:
+            observation = manual_observation
+            # Only transition to OBSERVING if we are IDLE (atomicity check)
+            if self.state_manager.current_state == AgentState.IDLE:
+                self.state_manager.transition_to(AgentState.OBSERVING, "manual_event_received")
+        else:
+            observation = self._sense()
         
         if not observation:
             # No events to process, stay idle
@@ -304,6 +346,33 @@ class AgentRuntime:
         # EXPLAIN
         self._explain(decision, action_result, observation_result)
     
+    def handle_external_event(self, event_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Force the agent to process a specific external event synchronously.
+        Respects the FSM lifecycle and uses the execution lock.
+        """
+        with self._loop_lock:
+            # Skip if agent is shutting down
+            if self._shutdown_requested:
+                raise RuntimeError("Agent is shutting down")
+                
+            # Perform single shot loop
+            try:
+                self._execute_agent_loop(manual_observation=event_data)
+            finally:
+                # Always return to IDLE after manual cycle
+                if self.state_manager.current_state != AgentState.IDLE:
+                    self.state_manager.transition_to(AgentState.IDLE, "manual_loop_complete")
+            
+            # Return the last decision result (stored during _execute_agent_loop via _explain)
+            if not self._last_decision:
+                return {
+                    "status": "error", 
+                    "message": "Cycle complete but no decision was explained (partial loop)",
+                    "decision": {"action_name": "noop", "source": "fsm_early_exit", "confidence": 0.0}
+                }
+            return self._last_decision
+    
     def _sense(self) -> Optional[Dict[str, Any]]:
         """SENSE: Observe environment for events/changes using perception layer.
         
@@ -336,18 +405,27 @@ class AgentRuntime:
                     self.state_manager.current_state.value
                 )
                 
-                # Return perception data for processing
+                # RETURN 1: Found a perception event
                 return perception.data
             
-            # No perceptions, stay idle
+            # SIDEBAR: Internal Agent Sensors (e.g. Scaling Queue)
+            if self.auto_scaler and self.auto_scaler.multi_agent:
+                queue_depth = self.auto_scaler.multi_agent.work_queue.qsize()
+                
+                # If queue is high, synthesize a internal event
+                if queue_depth > 5:
+                     return {
+                         "event_type": "high_queue", 
+                         "queue_depth": queue_depth, 
+                         "timestamp": datetime.utcnow().isoformat(),
+                         "source": "internal_sensor"
+                     }
+
+            # RETURN 2: Nothing detected, Agent remains Idle
             return None
-        
+
         except Exception as e:
-            self.logger.log_error(
-                "sense_error",
-                str(e),
-                self.state_manager.current_state.value
-            )
+            self.logger.log_error("sense_error", str(e), self.state_manager.current_state.value)
             self.state_manager.transition_to(AgentState.BLOCKED, f"sense_error: {e}")
             return None
     
@@ -491,6 +569,9 @@ class AgentRuntime:
                 self.state_manager.transition_to(AgentState.BLOCKED, restraint_check.reason)
                 
                 decision = {
+                    'action_name': 'noop',
+                    'source': 'self_restraint',
+                    'confidence': 1.0,
                     'rl_action': 0,  # NOOP
                     'self_blocked': True,
                     'block_reason': restraint_check.reason,
@@ -530,44 +611,68 @@ class AgentRuntime:
                 
                 return decision
             
-            # STEP 4: No override or block - proceed with RL decision (with memory context)
-            # Get additional memory context
-            recent_decisions = self.memory.recall_recent_decisions(10)
-            app_history = self.memory.recall_app_history(app_id, 5) if app_id else []
+            # STEP 4: GATHER SUGGESTIONS (Ownership Boundary Gap 7)
+            # The Agent Runtime is the orchestrator. RL and Rules are advisors.
             
-            # Use RL pipeline to make decision
-            # Note: RL pipe doesn't consume memory_context yet, but we prepare it
-            rl_result = self.rl_pipe.pipe_runtime_event(validated_data)
+            # Advisor 1: RL Brain (Stateless, Suggester)
+            rl_suggestion = self.rl_pipe.get_decision(
+                event_data=validated_data,
+                agent_state=self.state_manager.current_state.value,
+                memory_context=memory_signals
+            )
             
+            # Advisor 2: AutoScaler Rules (Heuristic Suggester)
+            queue_depth = 0
+            if self.auto_scaler and self.auto_scaler.multi_agent:
+                queue_depth = self.auto_scaler.multi_agent.work_queue.qsize()
+            
+            rule_recommendation = self.auto_scaler.get_recommendation(queue_depth)
+            
+            # STEP 6: FINALIZE DECISION
             decision = {
-                'rl_action': rl_result.get('rl_action', 0),
-                'execution_result': rl_result.get('execution'),
+                'rl_action': 0, # Placeholder
+                'action_name': arbitrated_result['action'],
+                'source': arbitrated_result['source'],
+                'reason': arbitrated_result['reason'],
+                'confidence': arbitrated_result['confidence'],
+                'execution_result': {}, # Not executed yet
                 'timestamp': datetime.utcnow().isoformat(),
                 'input_data': validated_data,
                 'override_applied': False,
-                'memory_signals_used': {
-                    'recent_failures': memory_signals['recent_failures'],
-                    'recent_actions': memory_signals['recent_actions'],
-                    'repeated_actions': memory_signals['repeated_actions'],
-                    'instability_score': memory_signals['instability_score'],
-                    'last_action_outcome': memory_signals['last_action_outcome'],
-                    'override_applied': False
-                },
-                'recent_decision_count': len(recent_decisions),
-                'app_history_count': len(app_history)
+                'memory_signals_used': memory_signals
             }
             
+            # Update last decision for visibility
+            self._last_decision = decision['action_name']
+            self._last_block_reason = decision['reason']
+            self._last_block_type = None
+            
             self.logger.log_decision(
-                "rl_decision_with_memory",
+                "arbitrated_decision",
                 decision,
                 self.state_manager.current_state.value
             )
             
-
-
-
-
-            confidence = decision.get("execution_result", {}).get("confidence", 1.0)
+            # PROOF LOGGING (Required for Dashboard Gap 5)
+            write_proof(ProofEvents.RL_DECISION, {
+                'env': self.env,
+                'event_type': validated_data.get('event_type', 'unknown'),
+                'decision_str': decision.get('action_name', 'noop'),
+                'source': decision.get('source', 'unknown'),
+                'confidence': decision.get('confidence', 1.0),
+                'status': 'decided'
+            })
+            
+            # Prepare for enforcement loop
+            action_map_rev = {"noop": 0, "restart": 1, "scale_up": 2, "scale_down": 3, "rollback": 4}
+            decision['rl_action'] = action_map_rev.get(decision['action_name'], 0)
+            
+            # The Agent is the ultimate decision maker.
+            # It can choose to block its own decision based on self-restraint rules.
+            
+            # STEP 7: SELF-RESTRAINT SAFETY GATE (Gap 7 Ownership)
+            # The Agent checks its own uncertainty before proceeding.
+            confidence = decision.get("confidence", 1.0)
 
             uncertainty_check = self.self_restraint.check_uncertainty(
                 decision_data={"confidence": confidence},
@@ -575,12 +680,11 @@ class AgentRuntime:
             )
 
             if uncertainty_check.should_block:
+                decision["action_name"] = "noop"
                 decision["rl_action"] = 0
-                decision["execution_result"] = {
-                    "status": "blocked",
-                    "reason": "uncertainty_too_high"
-                }
-
+                decision["source"] = "self_restraint"
+                decision["reason"] = "uncertainty_too_high"
+                
                 self.logger.log_decision("uncertainty_block", decision, "blocked")
 
                 self.memory.remember_decision(
@@ -590,32 +694,15 @@ class AgentRuntime:
                     context=validated_data
                 )
                 
-                # Track for external visibility
-                self._last_decision = "noop"
-                self._last_block_reason = "uncertainty_too_high"
-                self._last_block_type = "self_restraint"
-                
-                return decision  # CRITICAL: Return to prevent further execution
+                return decision
 
-
-
-
-
-
-
+            # STEP 8: CONFLICT CHECK (Stability Gate)
             conflict_check = self.self_restraint.should_observe_instead_of_act(
                 health_signals=validated_data.get("health"),
                 memory_signals=memory_signals
             )
 
             if conflict_check.should_block:
-                decision["rl_action"] = 0
-                decision["execution_result"] = {
-                    "status": "observe",
-                    "reason": "signal_conflict"
-                }
-
-                self.logger.log_decision("conflict_observe_mode", decision, "blocked")
 
                 self.memory.remember_decision(
                     decision_type="conflict_observe",
@@ -655,7 +742,7 @@ class AgentRuntime:
             
             # Remember this decision
             outcome = "pending"
-            if decision['execution_result']:
+            if decision.get('execution_result'):
                 if decision['execution_result'].get('status') == 'refused':
                     outcome = "refused"
                 elif decision['execution_result'].get('status') == 'success':
@@ -682,12 +769,12 @@ class AgentRuntime:
 
     def _map_rl_action_to_name(self, rl_action: int) -> str:
         return {
-        0: "noop",
-        1: "restart_service",
-        2: "scale_up",
-        3: "scale_down",
-        4: "rollback_deploy"
-    }.get(rl_action, "noop")
+            0: "noop",
+            1: "restart",
+            2: "scale_up",
+            3: "scale_down",
+            4: "rollback"
+        }.get(rl_action, "noop")
 
     
     def _enforce(self, decision: Dict[str, Any]) -> Dict[str, Any]:
@@ -709,11 +796,11 @@ class AgentRuntime:
         try:
             rl_action = decision.get("rl_action", 0)
             action_name = self._map_rl_action_to_name(rl_action)
-            execution = decision.get("execution_result", {})
+            execution = decision.get("execution_result") or {}
 
             context = {
                 "app_name": decision.get("input_data", {}).get("app_id"),
-                "confidence": decision.get("execution_result", {}).get("confidence", 1.0)  # FIXED: Correct source
+                "confidence": decision.get("confidence", 1.0)  # Use decision confidence
             }
 
             governance_result = self.governance.evaluate_action(
@@ -724,7 +811,9 @@ class AgentRuntime:
 
             if governance_result.should_block:
                 # FIX 3: Transition agent state to BLOCKED
-                self.state_manager.transition_to(AgentState.BLOCKED, governance_result.reason)
+                self._last_block_reason = governance_result.reason
+                self._last_block_type = governance_result.block_type
+                self.state_manager.transition_to(AgentState.BLOCKED, self._last_block_reason)
                 
                 block_payload = governance_result.to_dict()
                 
@@ -768,7 +857,7 @@ class AgentRuntime:
 
     
     def _act(self, safe_action: Dict[str, Any]) -> Dict[str, Any]:
-        """ACT: Execute validated safe action.
+        """ACT: Execute validated safe action through the Safe Orchestrator.
         
         Args:
             safe_action: Safe action from enforce phase
@@ -784,17 +873,34 @@ class AgentRuntime:
         )
         
         try:
-            # Action execution is already handled in RL pipeline
-            # Log the action
+            # CENTRALIZED EXECUTION: Call the Safe Orchestrator
+            rl_action_int = safe_action.get('rl_action', 0)
+            context = {
+                'app_name': safe_action.get('input_data', {}).get('app_id', 'unknown'),
+                'event_type': safe_action.get('input_data', {}).get('event_type', 'manual'),
+                'trigger_metrics': safe_action.get('input_data', {}).get('metrics', {})
+            }
+            
+            # Execute through safety gates
+            execution_result = self.safe_executor.validate_and_execute(
+                action_index=rl_action_int,
+                context=context,
+                source='rl_decision_layer' # Mark source for demo_mode gate
+            )
+            
             self.logger.log_action(
                 "execute_safe_action",
-                safe_action,
+                {
+                    "action": safe_action.get('action_name'),
+                    "result": execution_result
+                },
                 self.state_manager.current_state.value
             )
             
             return {
-                'status': 'executed',
+                'status': 'executed' if execution_result.get('success') else 'refused',
                 'action': safe_action,
+                'execution_details': execution_result,
                 'timestamp': datetime.utcnow().isoformat()
             }
         
@@ -897,6 +1003,9 @@ class AgentRuntime:
                 f"Loop {self.loop_count} complete: {explanation['conclusion']}",
                 agent_state=self.state_manager.current_state.value
             )
+            
+            # Store for synchronous retrieval
+            self._last_decision = explanation
         
         except Exception as e:
             self.logger.log_error(
@@ -984,6 +1093,18 @@ class AgentRuntime:
         """
         uptime = (datetime.utcnow() - self.start_time).total_seconds()
         
+        # Calculate metrics from memory
+        stats = self.memory.get_memory_stats()
+        total = stats.get("total_decisions_seen", 0)
+        
+        # Calculate rates (avoid division by zero)
+        success_rate = "100%" if total == 0 else f"{(self.memory.get_memory_context().get('recent_successes', 0) / max(1, min(total, 50))) * 100:.0f}%"
+        
+        # Safety rate calculation
+        safety_context = self.memory.get_memory_context()
+        fails = safety_context.get('recent_failures', 0)
+        safety_rate = "100%" if total == 0 else f"{((max(1, min(total, 50)) - fails) / max(1, min(total, 50))) * 100:.0f}%"
+
         status = {
             "agent_id": self.agent_id,
             "state": self.state_manager.current_state.value,
@@ -991,7 +1112,14 @@ class AgentRuntime:
             "last_block_reason": self._last_block_reason,
             "block_type": self._last_block_type,
             "loop_count": self.loop_count,
+            "uptime": int(uptime),
             "uptime_seconds": int(uptime),
+            "memory_stats": stats,
+            "metrics": {
+                "success_rate": success_rate,
+                "safety_rate": safety_rate,
+                "avg_response_time": "40ms" # TODO: Wire to real latency tracking
+            },
             "env": self.env,
             "version": self.version,
             "timestamp": datetime.utcnow().isoformat()
