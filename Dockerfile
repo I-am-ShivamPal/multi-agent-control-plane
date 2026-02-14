@@ -46,4 +46,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import os; exit(0 if os.path.exists('/app/logs') else 1)"
 
 # Default command - Flask API server with Gunicorn
-CMD ["gunicorn", "wsgi:app", "--bind", "0.0.0.0:$PORT", "--workers", "1", "--timeout", "120"]
+# Note: render.yaml startCommand will override this with proper port binding
+CMD ["gunicorn", "wsgi:app", "--workers", "1", "--timeout", "120"]
