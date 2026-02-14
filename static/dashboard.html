@@ -408,13 +408,7 @@
                     <span>🤖</span> Agent Monitor
                 </div>
                 <div class="nav-item" onclick="switchTab('explorer')">
-                    <span>📡</span> Advanced Analytics
-                </div>
-                <div class="nav-item" onclick="switchTab('actions')">
-                    <span>⚡</span> Action History
-                </div>
-                <div class="nav-item" onclick="switchTab('metrics')">
-                    <span>📊</span> Live Metrics
+                    <span>📡</span> RL Explorer
                 </div>
             </nav>
 
@@ -634,6 +628,7 @@
             document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
             document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
 
+            // Find current nav item
             const navItems = Array.from(document.querySelectorAll('.nav-item'));
             const targetNav = navItems.find(item => item.innerText.toLowerCase().includes(tabId));
             if (targetNav) targetNav.classList.add('active');
@@ -641,17 +636,10 @@
             document.getElementById(`tab-${tabId}`).classList.add('active');
 
             currentTab = tabId;
-            const titles = { 
-                'agent': 'Agent Monitor', 
-                'explorer': 'Advanced Analytics',
-                'actions': 'Action History',
-                'metrics': 'Live Metrics'
-            };
-            document.getElementById('pageTitle').innerText = titles[tabId] || 'Dashboard';
+            const titles = { 'agent': 'Agent Monitor', 'explorer': 'RL Explorer' };
+            document.getElementById('pageTitle').innerText = titles[tabId];
 
-            if (tabId === 'explorer') loadAdvancedAnalytics();
-            if (tabId === 'actions') loadActionHistory();
-            if (tabId === 'metrics') startLiveMetrics();
+            if (tabId === 'explorer') loadRLDiagnostics();
         }
 
         async function refreshAll() {
@@ -777,35 +765,7 @@
             `;
         }
 
-        async function loadAdvancedAnalytics() {
-            document.getElementById('rlStatus').innerText = 'ACTIVE';
-            document.getElementById('rlDecisions').innerText = '1,247';
-            document.getElementById('rlAccuracy').innerText = '94.2%';
-            document.getElementById('actionChart').innerHTML = '<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; width: 100%;"><div style="text-align: center;"><div style="font-size: 2rem; color: var(--success);">45%</div><div style="color: var(--text-dim);">NOOP</div></div><div style="text-align: center;"><div style="font-size: 2rem; color: var(--primary);">30%</div><div style="color: var(--text-dim);">RESTART</div></div><div style="text-align: center;"><div style="font-size: 2rem; color: var(--warning);">20%</div><div style="color: var(--text-dim);">SCALE_UP</div></div><div style="text-align: center;"><div style="font-size: 2rem; color: var(--secondary);">5%</div><div style="color: var(--text-dim);">SCALE_DOWN</div></div></div>';
-        }
-
-        async function loadActionHistory() {
-            const actions = [
-                {time: '14:32:15', action: 'RESTART', app: 'demo-api', status: 'success'},
-                {time: '14:28:42', action: 'SCALE_UP', app: 'backend-service', status: 'success'},
-                {time: '14:15:03', action: 'NOOP', app: 'frontend-app', status: 'success'},
-                {time: '14:05:21', action: 'RESTART', app: 'worker-1', status: 'success'},
-                {time: '13:58:44', action: 'SCALE_DOWN', app: 'api-gateway', status: 'success'}
-            ];
-            const html = actions.map(a => `<div style="padding: 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;"><div><div style="font-weight: 600; color: var(--primary);">${a.action}</div><div style="font-size: 0.85rem; color: var(--text-dim);">${a.app} • ${a.time}</div></div><span class="badge badge-live">${a.status}</span></div>`).join('');
-            document.getElementById('actionHistory').innerHTML = html;
-        }
-
-        function startLiveMetrics() {
-            setInterval(() => {
-                document.getElementById('liveUptime').innerText = (99.5 + Math.random() * 0.5).toFixed(1) + '%';
-                document.getElementById('liveRequests').innerText = (1.0 + Math.random() * 0.5).toFixed(1) + 'K';
-                document.getElementById('liveErrors').innerText = Math.floor(Math.random() * 5);
-                const event = `<div style="margin-bottom: 8px; color: var(--text-dim);">[${new Date().toLocaleTimeString()}] Event detected: CPU spike on demo-api</div>`;
-                const stream = document.getElementById('eventStream');
-                stream.innerHTML = event + stream.innerHTML;
-            }, 3000);
-        }
+        async function loadRLDiagnostics() {
             const hBadge = document.getElementById('rlHealthBadge');
             const scopeContainer = document.getElementById('scopeTextContainer');
 
