@@ -1,0 +1,91 @@
+{
+  "test_timestamp": 1770040502.994299,
+  "system_status": {
+    "demo_mode": true,
+    "learning_enabled": false,
+    "exploration_rate": 0.0,
+    "allowed_actions": {
+      "dev": [
+        "noop",
+        "scale_up",
+        "scale_down",
+        "restart"
+      ],
+      "stage": [
+        "noop",
+        "scale_up",
+        "scale_down"
+      ],
+      "prod": [
+        "noop",
+        "restart"
+      ]
+    }
+  },
+  "demo_scenarios": [
+    {
+      "scenario": "Dev Crash",
+      "timestamp": 1770040502.994299,
+      "input": {
+        "environment": "dev",
+        "event": "crash",
+        "data": {
+          "service": "api-server"
+        }
+      },
+      "output": {
+        "action": "restart",
+        "filtered": false
+      },
+      "demo_safe": true
+    },
+    {
+      "scenario": "Stage Overload",
+      "timestamp": 1770040502.994299,
+      "input": {
+        "environment": "stage",
+        "event": "overload",
+        "data": {
+          "cpu": 85
+        }
+      },
+      "output": {
+        "action": "scale_up",
+        "filtered": false
+      },
+      "demo_safe": true
+    },
+    {
+      "scenario": "Prod Conservative",
+      "timestamp": 1770040502.994299,
+      "input": {
+        "environment": "prod",
+        "event": "overload",
+        "data": {
+          "memory": 90
+        }
+      },
+      "output": {
+        "action": "noop",
+        "filtered": false
+      },
+      "demo_safe": true
+    },
+    {
+      "scenario": "False Failure",
+      "timestamp": 1770040502.994299,
+      "input": {
+        "environment": "prod",
+        "event": "false_failure",
+        "data": {
+          "alert": "network"
+        }
+      },
+      "output": {
+        "action": "noop",
+        "filtered": false
+      },
+      "demo_safe": true
+    }
+  ]
+}

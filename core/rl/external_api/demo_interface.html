@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RL Decision Brain - Demo Interface</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .header { background: #1a1a1a; color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .status { background: #e8f5e8; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .demo-section { background: #f5f5f5; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .scenario-btn { background: #007bff; color: white; border: none; padding: 10px 20px; margin: 5px; border-radius: 5px; cursor: pointer; }
+        .scenario-btn:hover { background: #0056b3; }
+        .result { background: white; border: 1px solid #ddd; padding: 15px; border-radius: 5px; margin-top: 10px; }
+        .safe { color: #28a745; font-weight: bold; }
+        .warning { color: #ffc107; font-weight: bold; }
+        .error { color: #dc3545; font-weight: bold; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🧠 RL Decision Brain - Demo Interface</h1>
+        <p>Demo-Frozen Version | Learning Disabled | Deterministic Behavior</p>
+    </div>
+
+    <div class="status">
+        <h3>System Status</h3>
+        <div id="systemStatus">Loading...</div>
+    </div>
+
+    <div class="demo-section">
+        <h3>Demo Scenarios</h3>
+        <p>Click any scenario to see the RL decision process:</p>
+        
+        <button class="scenario-btn" onclick="runScenario('dev', 'crash', {service: 'api-server'})">
+            Dev Crash Recovery
+        </button>
+        
+        <button class="scenario-btn" onclick="runScenario('stage', 'overload', {cpu: 85})">
+            Stage Overload Scaling
+        </button>
+        
+        <button class="scenario-btn" onclick="runScenario('prod', 'overload', {memory: 90})">
+            Prod Conservative Response
+        </button>
+        
+        <button class="scenario-btn" onclick="runScenario('prod', 'false_failure', {alert: 'network_blip'})">
+            False Failure Ignored
+        </button>
+
+        <div id="result" class="result" style="display: none;">
+            <h4>Decision Result</h4>
+            <div id="resultContent"></div>
+        </div>
+    </div>
+
+    <div class="demo-section">
+        <h3>Custom Test</h3>
+        <select id="environment">
+            <option value="dev">Development</option>
+            <option value="stage">Staging</option>
+            <option value="prod">Production</option>
+        </select>
+        
+        <select id="eventType">
+            <option value="crash">Crash</option>
+            <option value="overload">Overload</option>
+            <option value="false_failure">False Failure</option>
+        </select>
+        
+        <button class="scenario-btn" onclick="runCustomTest()">Run Custom Test</button>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000/api';
+
+        async function loadSystemStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/status`);
+                const status = await response.json();
+                
+                document.getElementById('systemStatus').innerHTML = `
+                    <strong>Demo Mode:</strong> <span class="safe">${status.demo_mode ? 'ENABLED' : 'DISABLED'}</span><br>
+                    <strong>Learning:</strong> <span class="safe">${status.learning_enabled ? 'ENABLED' : 'FROZEN'}</span><br>
+                    <strong>Exploration Rate:</strong> <span class="safe">${status.exploration_rate}</span><br>
+                    <strong>Allowed Actions:</strong><br>
+                    ${Object.entries(status.allowed_actions).map(([env, actions]) => 
+                        `&nbsp;&nbsp;<strong>${env}:</strong> ${actions.join(', ')}`
+                    ).join('<br>')}
+                `;
+            } catch (error) {
+                document.getElementById('systemStatus').innerHTML = 
+                    '<span class="error">API not available. Start the demo API first.</span>';
+            }
+        }
+
+        async function runScenario(environment, eventType, eventData) {
+            try {
+                const response = await fetch(`${API_BASE}/decision`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        environment: environment,
+                        event_type: eventType,
+                        event_data: eventData
+                    })
+                });
+
+                const result = await response.json();
+                displayResult(result);
+            } catch (error) {
+                displayError(error.message);
+            }
+        }
+
+        function runCustomTest() {
+            const environment = document.getElementById('environment').value;
+            const eventType = document.getElementById('eventType').value;
+            runScenario(environment, eventType, {custom: true});
+        }
+
+        function displayResult(result) {
+            const resultDiv = document.getElementById('result');
+            const contentDiv = document.getElementById('resultContent');
+            
+            const actionClass = result.safety_result.executed ? 'safe' : 'warning';
+            
+            contentDiv.innerHTML = `
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
+                    <div>
+                        <h5>🚨 Runtime Event</h5>
+                        <strong>Environment:</strong> ${result.runtime_event.environment}<br>
+                        <strong>Type:</strong> ${result.runtime_event.type}<br>
+                        <strong>Data:</strong> ${JSON.stringify(result.runtime_event.data)}
+                    </div>
+                    
+                    <div>
+                        <h5>🧠 RL Decision</h5>
+                        <strong>Proposed:</strong> ${result.rl_decision.proposed_action}<br>
+                        <strong>Final:</strong> <span class="${actionClass}">${result.rl_decision.final_action}</span><br>
+                        <strong>Filtered:</strong> ${result.rl_decision.action_filtered ? 'Yes' : 'No'}<br>
+                        <strong>Reasoning:</strong> ${result.rl_decision.reasoning}
+                    </div>
+                    
+                    <div>
+                        <h5>🛡️ Safety Result</h5>
+                        <strong>Executed:</strong> <span class="${actionClass}">${result.safety_result.executed ? 'YES' : 'NO'}</span><br>
+                        <strong>Refused:</strong> ${result.safety_result.refused ? 'YES' : 'NO'}<br>
+                        <strong>Demo Safe:</strong> <span class="safe">${result.safety_result.safe_for_demo ? 'YES' : 'NO'}</span>
+                    </div>
+                </div>
+                
+                <h5>📊 System Status</h5>
+                <strong>Demo Mode:</strong> <span class="safe">${result.system_status.demo_mode ? 'ACTIVE' : 'INACTIVE'}</span> | 
+                <strong>Learning:</strong> <span class="safe">${result.system_status.learning_disabled ? 'DISABLED' : 'ENABLED'}</span> | 
+                <strong>Deterministic:</strong> <span class="safe">${result.system_status.deterministic ? 'YES' : 'NO'}</span>
+            `;
+            
+            resultDiv.style.display = 'block';
+        }
+
+        function displayError(message) {
+            const resultDiv = document.getElementById('result');
+            const contentDiv = document.getElementById('resultContent');
+            
+            contentDiv.innerHTML = `<span class="error">Error: ${message}</span>`;
+            resultDiv.style.display = 'block';
+        }
+
+        // Load system status on page load
+        loadSystemStatus();
+    </script>
+</body>
+</html>
