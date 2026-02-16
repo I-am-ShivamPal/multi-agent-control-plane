@@ -8,7 +8,7 @@ import numpy as np
 
 # --- Page Configuration ---
 st.set_page_config(
-    page_title="InsightFlow Dashboard",
+    page_title="Pravah Dashboard",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -26,19 +26,19 @@ st.markdown(
 
 # --- Initialize Directories ---
 os.makedirs("logs", exist_ok=True)
-os.makedirs("insightflow", exist_ok=True)
+os.makedirs("pravah", exist_ok=True)
 os.makedirs("dataset", exist_ok=True)
 
 # Initialize telemetry if not exists
-if not os.path.exists("insightflow/telemetry.json"):
-    with open("insightflow/telemetry.json", "w") as f:
+if not os.path.exists("pravah/telemetry.json"):
+    with open("pravah/telemetry.json", "w") as f:
         json.dump([], f)
 
 # --- Telemetry Functions ---
 @st.cache_data(ttl=10)
 def load_telemetry():
     try:
-        with open("insightflow/telemetry.json", 'r') as f:
+        with open("pravah/telemetry.json", 'r') as f:
             return json.load(f)
     except:
         return []
@@ -49,7 +49,7 @@ def store_telemetry(entry):
         telemetry.append(entry)
         if len(telemetry) > 1000:
             telemetry = telemetry[-1000:]
-        with open("insightflow/telemetry.json", 'w') as f:
+        with open("pravah/telemetry.json", 'w') as f:
             json.dump(telemetry, f, indent=2)
     except:
         pass
@@ -137,7 +137,7 @@ if st.sidebar.button("🚨 Apply Override", type="primary"):
         st.sidebar.warning("Please select an action first")
 
 # --- MAIN DASHBOARD ---
-st.title("🔍 InsightFlow Dashboard")
+st.title("🌊 Pravah Dashboard")
 
 # Manual Override in Main Area
 with st.expander("🔧 Manual Override Controls", expanded=False):
@@ -172,6 +172,10 @@ with col3: st.metric("Auto Heal", "🔵 Ready")
 with col4: st.metric("RL Optimizer", "🟠 Learning")
 with col5: st.metric("Realtime Bus", "🟢 Online")
 
+# Unified Pipeline View
+from ui.dashboards.unified_component import render_unified_pipeline
+render_unified_pipeline()
+
 # Auto refresh with performance consideration
 if auto_refresh:
     time.sleep(5)
@@ -182,8 +186,47 @@ if auto_refresh:
 if st.button("🔄 Manual Refresh"):
     st.rerun()
 
-# InsightFlow Analytics
-st.header("📊 InsightFlow Analytics")
+# Pravah Analytics
+st.header("📊 Pravah Analytics")
+
+# Quick access to advanced dashboard
+col_dash1, col_dash2, col_dash3 = st.columns([1, 1, 1])
+with col_dash1:
+    if st.button("🚀 Open Advanced Dashboard", type="primary", use_container_width=True):
+        import webbrowser
+        dashboard_path = os.path.abspath("core/rl/external_api/advanced_dashboard.html")
+        webbrowser.open(f"file:///{dashboard_path}")
+        st.success("✅ Advanced dashboard opened in browser!")
+with col_dash2:
+    if st.button("📋 View Registry Files", use_container_width=True):
+        registry_path = "apps/registry"
+        if os.path.exists(registry_path):
+            files = [f for f in os.listdir(registry_path) if f.endswith('.json')]
+            st.info(f"Found {len(files)} apps in registry")
+            for f in files:
+                st.text(f"• {f}")
+        else:
+            st.warning("No registry files found")
+with col_dash3:
+    if st.button("💾 Download All Logs", use_container_width=True):
+        import zipfile
+        from io import BytesIO
+        
+        zip_buffer = BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for root, dirs, files in os.walk("logs"):
+                for file in files:
+                    if file.endswith(('.csv', '.log', '.json')):
+                        file_path = os.path.join(root, file)
+                        zip_file.write(file_path, os.path.relpath(file_path, "logs"))
+        
+        st.download_button(
+            label="⬇️ Download Logs ZIP",
+            data=zip_buffer.getvalue(),
+            file_name=f"pravah-logs-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.zip",
+            mime="application/zip"
+        )
+
 insight_col1, insight_col2, insight_col3 = st.columns(3)
 
 with insight_col1:

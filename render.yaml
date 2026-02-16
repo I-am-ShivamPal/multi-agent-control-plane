@@ -1,44 +1,12 @@
-# services:
-#   - type: web
-#     name: multi-agent-dashboard
-#     env: python
-#     buildCommand: pip install -r requirements.txt
-#     startCommand: bash start_render.sh
-#     healthCheckPath: /_stcore/health
-#     envVars:
-#       - key: PYTHONPATH
-#         value: /opt/render/project/src
-#       - key: STREAMLIT_SERVER_HEADLESS
-#         value: true
-#       - key: STREAMLIT_SERVER_ENABLE_CORS
-#         value: false
-#       - key: DEMO_MODE
-#         value: true
-#       - key: DEMO_FREEZE_MODE
-#         value: true
-
-
-
-
-
-
 services:
   - type: web
-    name: multi-intelligent-agent-api
+    name: pravah-cicd
     env: python
-    buildCommand: pip install -r requirements.txt
-    # Prevent main.py from auto-running
-    preDeployCommand: echo "Skipping simulations - API mode only"
-    # Use wsgi.py entry point for proper initialization
-    startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 1 --timeout 120 --log-level info
+    buildCommand: pip install -r requirements-deploy.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
     envVars:
-      - key: DEMO_MODE
-        value: "true"
-      - key: DEMO_FREEZE_MODE
-        value: "true"
-      - key: PYTHONUNBUFFERED
-        value: "1"
-      - key: SKIP_SIMULATIONS
-        value: "true"
-      - key: RENDER
-        value: "true"
+      - key: ENVIRONMENT
+        value: stage
+      - key: RL_ENDPOINT
+        value: http://localhost:5001/decide
+    healthCheckPath: /health
